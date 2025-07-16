@@ -1,0 +1,23 @@
+{
+  "name": "sparql-rewrite",
+  "version": "1.0.0",
+  "description": "Library for SPARQL rewriting based on a set of rules",
+  "homepage": "https://github.com/miguel76/sparql-rewrite#readme",
+  "bugs": {
+    "url": "https://github.com/miguel76/sparql-rewrite/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miguel76/sparql-rewrite.git"
+  },
+  "license": "MIT",
+  "author": "miguel.ceriani@gmail.com",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "sparqljs": "^3.7.3"
+  }
+}
