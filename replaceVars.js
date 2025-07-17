@@ -2,10 +2,10 @@ import visit from "./visitQuery.js";
 
 export default function replaceVars(query, replacement, defaultPrefix = '') {
     return visit(query, {
-        postVisitQuery: query => {
-            if (query.type === 'values') {
+        postVisitPattern: pattern => {
+            if (pattern.type === 'values') {
                 let newValues = [];
-                query.values.forEach((binding) => {
+                pattern.values.forEach((binding) => {
                     let newBinding = {};
                     for (const varnameWithQuestionMark in binding) {
                         const varname = varnameWithQuestionMark.slice(1);
@@ -40,9 +40,9 @@ export default function replaceVars(query, replacement, defaultPrefix = '') {
                     values: newValues
                 };
             }
-            if (query.type === 'bind' && query.variable.value in replacement && replacement[query.variable.value].termType !== 'Variable') {
-                if ('termType' in query.expression) {
-                    if (equalTerms(replacement[query.variable.value], query.expression)) {
+            if (pattern.type === 'bind' && pattern.variable.value in replacement && replacement[pattern.variable.value].termType !== 'Variable') {
+                if ('termType' in pattern.expression) {
+                    if (equalTerms(replacement[pattern.variable.value], pattern.expression)) {
                         return COLLAPSED_TRUE;
                     }
                     return COLLAPSED_FALSE;
@@ -52,11 +52,11 @@ export default function replaceVars(query, replacement, defaultPrefix = '') {
                     expression: {
                         type: 'operation',
                         operator: '=',
-                        args: [replacement[query.variable.value], query.expression]
+                        args: [replacement[pattern.variable.value], pattern.expression]
                     }
                 };
             }
-            return query;
+            return pattern;
         },
         visitTerm: term => {
             if (term.termType === 'Variable') {

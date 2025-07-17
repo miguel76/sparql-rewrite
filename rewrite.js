@@ -1,16 +1,16 @@
 import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
 import tripleMatch from "./match.js";
 import replaceVars from "./replaceVars.js";
+import getOuptutVariables from "./getOutputVariables.js";
 
 export default function queryRewrite(query, rules, exposeSource = true) {
     let subqueryCounter = 0;
     return visit(query, {
-        postVisitQuery: query => {
-            if (query.type === 'bgp') {
+        postVisitPattern: pattern => {
+            if (pattern.type === 'bgp') {
                 let remainingBgpTriples = [];
                 let newPatterns = [];
-                // let extraClauses = [];
-                for (const triplePattern of query.triples) {
+                for (const triplePattern of pattern.triples) {
                     let matchFound = false;
                     for (const rule of rules) {
                         const ruleHead = rule.template[0];
@@ -46,6 +46,38 @@ export default function queryRewrite(query, rules, exposeSource = true) {
                     type: 'group',
                     patterns: newPatterns
                 }
+            }
+            return pattern;
+        },
+        preVisitQuery: query => {
+            if ('variables' in query &&
+                query.variables.length === 1 &&
+                Object.keys(query.variables[0]).length === 0
+            ) {
+                return {
+                    ...query,
+                    projectedVariables: getOuptutVariables(query)
+                }
+            }
+            return query;
+        },
+        postVisitQuery: query => {
+            if ('variables' in query &&
+                query.variables.length === 1 &&
+                Object.keys(query.variables[0]).length === 0
+            ) {
+                const {projectedVariables, ...justQuery} = query;
+                const newProjectedVariables = getOuptutVariables(justQuery);
+                if (JSON.stringify(newProjectedVariables) != JSON.stringify(projectedVariables)) {
+                    return {
+                        ...justQuery,
+                        variables: projectedVariables.map(varname => ({
+                            termType: 'Variable',
+                            value: varname
+                        }))
+                    }
+                }
+                return justQuery;
             }
             return query;
         }

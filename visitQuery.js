@@ -27,9 +27,11 @@ export function convertCollapsed(patterns) {
     return patterns;
 }
 
-export default function visit(query, {
+export default function visitQuery(query, {
     preVisitQuery = (x) => (x),
     postVisitQuery = (x) => (x), 
+    preVisitPattern = (x) => (x),
+    postVisitPattern = (x) => (x), 
     visitTerm = (x) => (x)
 } = {}) {
     function v(query) {
@@ -56,14 +58,12 @@ export default function visit(query, {
             return visitTerm(query)
         }
         if ('queryType' in query) {
-            return {
-                ...query,
-                where: convertCollapsed(v(query.where))
-            };
+            query = preVisitQuery(query);
+            const where = v(query.where);
+            return postVisitQuery({...query, where});
         }
         if ('type' in query) {
-            query = preVisitQuery(query);
-            console.log(query)
+            query = preVisitPattern(query);
             if (query.type === 'bgp') {
                 query = {
                     type: 'bgp',
@@ -115,7 +115,7 @@ export default function visit(query, {
             } else {
                 query = Object.fromEntries(Object.entries(query).map(([key, value]) => [key, v(value)]));
             }
-            return postVisitQuery(query);
+            return postVisitPattern(query);
         }
     }
     return v(query);
