@@ -5,6 +5,7 @@ import replaceVars from './replaceVars.js';
 import tripleMatch from './match.js';
 import queryRewrite from './rewrite.js';
 import getOuptutVariables from './getOutputVariables.js';
+import compileView from './compileView.js';
 
 var parser = new SparqlParser();
 
@@ -17,7 +18,30 @@ const parsedRules = [
         'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
         'PREFIX schema: <http://schema.org/> ' +
         'CONSTRUCT {?p foaf:knows ?n} { ?p schema:knows ?n }'),
+    parser.parse(
+        'PREFIX schema: <http://schema.org/> ' +
+        'CONSTRUCT WHERE { ?p schema:likes ?n }'),
 ];
+
+
+const viewSpec = {
+  commonPreamble:
+    'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
+    'PREFIX schema: <http://schema.org/> ',
+  ruleSpecs: [
+    {
+      'construct': 'CONSTRUCT {?p foaf:name ?n} { ?p schema:name ?n; foaf:knows ?other. }'
+    },
+    {
+      'construct': 'CONSTRUCT {?p foaf:knows ?n} { ?p schema:knows ?n }'
+    },
+    {
+      'construct': 'CONSTRUCT WHERE { ?p schema:likes ?n }'
+    }
+  ]
+}
+
+// console.log(JSON.stringify(parsedRules[2]));
 
 var parsedQuery = parser.parse(
   'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
@@ -42,5 +66,11 @@ var generator = new SparqlGenerator({ /* prefixes, baseIRI, factory, sparqlStar 
 
 // console.log(parsedQuery.variables);
 
-console.log(queryRewrite(parsedQuery, parsedRules, true));
-console.log(generator.stringify(queryRewrite(parsedQuery, parsedRules, true)));
+// console.log(queryRewrite(parsedQuery, parsedRules, true));
+// console.log(generator.stringify(queryRewrite(parsedQuery, parsedRules, true)));
+
+// console.log(parseRulesSpecs(viewSpec));
+
+compileView(viewSpec).forEach(construct => {
+  console.log(generator.stringify(construct));
+});

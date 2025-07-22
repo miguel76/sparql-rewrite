@@ -59,8 +59,9 @@ export default function visitQuery(query, {
         }
         if ('queryType' in query) {
             query = preVisitQuery(query);
-            const where = v(query.where);
-            return postVisitQuery({...query, where});
+            query = Object.fromEntries(Object.entries(query).map(([key, value]) => [key, v(value)]));
+            // const where = v(query.where);
+            return postVisitQuery(query);
         }
         if ('type' in query) {
             query = preVisitPattern(query);
@@ -117,6 +118,7 @@ export default function visitQuery(query, {
             }
             return postVisitPattern(query);
         }
+        return Object.fromEntries(Object.entries(query).map(([key, value]) => [key, v(value)]));
     }
     return v(query);
 }
