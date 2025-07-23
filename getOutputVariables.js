@@ -1,6 +1,6 @@
 import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
 
-export default function getOuptutVariables(query, rules, exposeSource = true) {
+export default function getOutputVariables(query) {
     return visit(query, {
         visitTerm: term => {
             if (term.termType === 'Variable') {

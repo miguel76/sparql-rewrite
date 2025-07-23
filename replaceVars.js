@@ -1,6 +1,6 @@
 import visit from "./visitQuery.js";
 
-export default function replaceVars(query, replacement, defaultPrefix = '') {
+export default function replaceVars(query, replacement, defaultPrefix = '', boundVariables = []) {
     return visit(query, {
         postVisitPattern: pattern => {
             if (pattern.type === 'values') {
@@ -40,21 +40,35 @@ export default function replaceVars(query, replacement, defaultPrefix = '') {
                     values: newValues
                 };
             }
-            if (pattern.type === 'bind' && pattern.variable.value in replacement && replacement[pattern.variable.value].termType !== 'Variable') {
-                if ('termType' in pattern.expression) {
-                    if (equalTerms(replacement[pattern.variable.value], pattern.expression)) {
-                        return COLLAPSED_TRUE;
+            // if (pattern.type === 'bind' && pattern.variable.value in replacement) {
+            //     if (replacement[pattern.variable.value].termType !== 'Variable') {
+            if (pattern.type === 'bind') {
+                if (pattern.variable.termType !== 'Variable') {
+                    if ('termType' in pattern.expression) {
+                        if (equalTerms(replacement[pattern.variable.value], pattern.expression)) {
+                            return COLLAPSED_TRUE;
+                        }
+                        return COLLAPSED_FALSE;
                     }
-                    return COLLAPSED_FALSE;
+                    return {
+                        type: 'filter',
+                        expression: {
+                            type: 'operation',
+                            operator: '=',
+                            args: [pattern.variable, pattern.expression]
+                        }
+                    };
                 }
-                return {
-                    type: 'filter',
-                    expression: {
-                        type: 'operation',
-                        operator: '=',
-                        args: [replacement[pattern.variable.value], pattern.expression]
-                    }
-                };
+                if (boundVariables.includes(pattern.variable.value)) {
+                    return {
+                        type: 'filter',
+                        expression: {
+                            type: 'operation',
+                            operator: '=',
+                            args: [pattern.variable.value, pattern.expression]
+                        }
+                    };
+                }
             }
             return pattern;
         },

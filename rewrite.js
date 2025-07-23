@@ -1,7 +1,7 @@
 import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
 import tripleMatch from "./match.js";
 import replaceVars from "./replaceVars.js";
-import getOuptutVariables from "./getOutputVariables.js";
+import getOutputVariables from "./getOutputVariables.js";
 
 export default function queryRewrite(query, rules, exposeSource = true) {
     let subqueryCounter = 0;
@@ -17,7 +17,7 @@ export default function queryRewrite(query, rules, exposeSource = true) {
                         const matchResult = tripleMatch(triplePattern, ruleHead);
                         if (matchResult !== null) {
                             matchFound = true;
-                            newPatterns.push(replaceVars(rule.where, matchResult.match, `_q${subqueryCounter++}_`));
+                            newPatterns.push(replaceVars(rule.where, matchResult.match, `_q${subqueryCounter++}_`, getOutputVariables(newPatterns)));
                             newPatterns.push(...matchResult.extraClauses);
                             break;
                         }
@@ -56,7 +56,7 @@ export default function queryRewrite(query, rules, exposeSource = true) {
             ) {
                 return {
                     ...query,
-                    projectedVariables: getOuptutVariables(query)
+                    projectedVariables: getOutputVariables(query)
                 }
             }
             return query;
@@ -67,7 +67,7 @@ export default function queryRewrite(query, rules, exposeSource = true) {
                 Object.keys(query.variables[0]).length === 0
             ) {
                 const {projectedVariables, ...justQuery} = query;
-                const newProjectedVariables = getOuptutVariables(justQuery);
+                const newProjectedVariables = getOutputVariables(justQuery);
                 if (JSON.stringify(newProjectedVariables) != JSON.stringify(projectedVariables)) {
                     return {
                         ...justQuery,

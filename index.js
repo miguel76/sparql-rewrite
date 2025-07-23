@@ -4,7 +4,7 @@ import { Generator as SparqlGenerator } from 'sparqljs';
 import replaceVars from './replaceVars.js';
 import tripleMatch from './match.js';
 import queryRewrite from './rewrite.js';
-import getOuptutVariables from './getOutputVariables.js';
+import getOutputVariables from './getOutputVariables.js';
 import compileView from './compileView.js';
 
 var parser = new SparqlParser();
@@ -74,3 +74,5 @@ var generator = new SparqlGenerator({ /* prefixes, baseIRI, factory, sparqlStar 
 compileView(viewSpec).forEach(construct => {
   console.log(generator.stringify(construct));
 });
+
+console.log(generator.stringify(queryRewrite(parsedQuery, compileView(viewSpec))));
