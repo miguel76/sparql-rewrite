@@ -1,0 +1,9 @@
+PREFIX ex: <http://example.org/>
+
+SELECT ?f5 ?r5 ?l5
+WHERE {
+    ex:person0 ex:vfriend ?f5.
+    ?f5 ex:vlives ?l5.
+    ex:person0 ex:vrelated ?r5.
+    ?r5 ex:vlives ?l5
+}

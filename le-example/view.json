@@ -1,0 +1,9 @@
+{
+    "commonPreamble": "PREFIX ex: <http://example.org/>",
+    "rules": [
+        "CONSTRUCT {?f0 ex:vfriend ?f1, ?f1 ex:vname ?n1, ?f1 ex:vlives ?l1} WHERE {?f0 ex:name ⟨P1⟩, ?f0 ex:friend ?f1, ?f1 ex:name ?n1, ?f1 ex:lives ?l1}",
+        "CONSTRUCT {?f2 ex:vfriend ?f4, ?f4 ex:vname ?n4, ?f4 ex:vlives ?l4 } WHERE {?f2 ex:name ⟨P2⟩, ?f2 ex:friend ?f3, ?f4 ex:name ?n4, ?f3 ex:friend ?f4, ?f4 ex:lives ?l4}",
+        "CONSTRUCT {?r0 ex:vrelated ?r1, ?r1 ex:vname ?n1, ?r1 ex:vlives ?l1} WHERE {?r0 ex:name ⟨P3⟩, ?r0 ex:related ?r1, ?r1 ex:name ?n1, ?r1 ex:lives ?l1}",
+        "CONSTRUCT {?r2 ex:vrelated ?r4, ?r4 ex:vname ?n4, ?r4 ex:vlives ?l4} WHERE {?r2 ex:name ⟨P4⟩, ?r2 ex:related ?r3, ?r3 ex:related ?r4, ?r4 ex:name ?n4, ?r4 ex:lives ?l4}"
+    ]
+}

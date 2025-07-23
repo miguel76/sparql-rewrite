@@ -1,0 +1,26 @@
+PREFIX ex: <http://example.org/>
+
+ex:person0 ex:name ex:Eric.
+ex:person1 ex:name ex:Kenny.
+ex:person2 ex:name ex:Stan.
+ex:person3 ex:name ex:Kyle.
+ex:person5 ex:name ex:Jimmy.
+ex:person6 ex:name ex:Timmy.
+ex:person9 ex:name ex:Danny.
+ex:person0 ex:lives ex:NYC.
+ex:person1 ex:lives ex:LA.
+ex:person2 ex:lives ex:NYC.
+ex:person3 ex:lives ex:NYC.
+ex:person5 ex:lives ex:NYC.
+ex:person6 ex:lives ex:CHI.
+ex:person9 ex:lives ex:LA.
+ex:person0 ex:friend ex:person1.
+ex:person0 ex:friend ex:person2.
+ex:person1 ex:friend ex:person2.
+ex:person1 ex:friend ex:person5.
+ex:person2 ex:friend ex:person6.
+ex:person3 ex:friend ex:person8.
+ex:person0 ex:related ex:person3.
+ex:person3 ex:related ex:person9.
+ex:person0 ex:works ex:person4.
+ex:person2 ex:works ex:person7.
