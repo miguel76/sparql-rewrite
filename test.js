@@ -1,4 +1,3 @@
-// Parse a SPARQL query to a JSON object
 import { Parser as SparqlParser } from 'sparqljs';
 import { Generator as SparqlGenerator } from 'sparqljs';
 import replaceVars from './replaceVars.js';
