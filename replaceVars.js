@@ -1,4 +1,5 @@
-import visit from "./visitQuery.js";
+import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
+import { equalTerms } from './match.js';
 
 /**
  * replaceVars.js
