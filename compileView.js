@@ -35,14 +35,18 @@ import { equalTerms } from './match.js';
  *   patterns first.
  *
  * Notes on formats:
- * - `ruleSpecs` is an array of objects. Each object can use any of the
- *   following shorthand properties (examples):
- *     { class: '<IRI>' }
- *     { property: '<IRI>' }
- *     { pattern: '... WHERE pattern ...' }
- *     { template: '?s a <Type> . ?s <p> ?o' }
- *     { construct: 'CONSTRUCT { ... } WHERE { ... }' }
- *     { exclude: true } // turns the rule into a construct that never matches
+ * - `ruleSpecs` is an array where each element can be:
+ *
+ *   1) A string: A complete SPARQL CONSTRUCT query
+ *      'CONSTRUCT { ?p foaf:name ?n } { ?p schema:name ?n; foaf:knows ?other. }'
+ *
+ *   2) An object with shorthand properties:
+ *      { class: '<IRI>' }
+ *      { property: '<IRI>' }
+ *      { pattern: '... WHERE pattern ...' }
+ *      { template: '?s a <Type> . ?s <p> ?o' }
+ *      { construct: 'CONSTRUCT { ... } WHERE { ... }' }
+ *      { exclude: true } // turns the rule into a construct that never matches
  *
  * - `commonPreamble` is a string that is prefixed to every construct text
  *   before parsing (useful to provide PREFIX declarations shared by all
@@ -221,9 +225,11 @@ function orderByDecreasingSpecificity(constructs) {
  * Parameters:
  * - `commonPreamble` (string): text prefixed to every construct before
  *   parsing (useful for shared PREFIX declarations).
- * - `ruleSpecs` (Array<Object>): each object is a rule specification which
- *   can contain shorthand properties: `class`, `property`, `pattern`,
- *   `template`, `construct`, and optionally `exclude`.
+ * - `ruleSpecs` (Array<string|Object>): each element is a rule specification
+ *   which can be:
+ *     - A string: complete SPARQL CONSTRUCT query
+ *     - An object with shorthand properties: `class`, `property`, `pattern`,
+ *       `template`, `construct`, and optionally `exclude`.
  *
  * Returns:
  * - An array of parsed `sparqljs` CONSTRUCT query objects, expanded with
@@ -236,21 +242,24 @@ export default function compileView({
 } = {}) {
     const parser = new SparqlParser();
     function ruleSpecToConstruct(rule) {
-        let templateTxt;
-        if ('template' in rule) {
-            templateTxt = rule.template;
-        } else if ('class' in rule) {
-            templateTxt = `?${DEFAULT_VARS.subject.value} a ${rule.class}`;
-        } else if ('property' in rule) {
-            templateTxt = `?${DEFAULT_VARS.subject.value} ${rule.property} ?${DEFAULT_VARS.object.value}`;
-        } else {
-            templateTxt = `?${DEFAULT_VARS.subject.value} ?${DEFAULT_VARS.predicate.value} ?${DEFAULT_VARS.object.value}`;
-        }
 
         let constructTxt;
-        if ('construct' in rule) {
+        if (typeof rule === "string") {
+            constructTxt = rule;
+        } else if ('construct' in rule) {
             constructTxt = rule.construct;
         } else {
+            let templateTxt;
+            if ('template' in rule) {
+                templateTxt = rule.template;
+            } else if ('class' in rule) {
+                templateTxt = `?${DEFAULT_VARS.subject.value} a ${rule.class}`;
+            } else if ('property' in rule) {
+                templateTxt = `?${DEFAULT_VARS.subject.value} ${rule.property} ?${DEFAULT_VARS.object.value}`;
+            } else {
+                templateTxt = `?${DEFAULT_VARS.subject.value} ?${DEFAULT_VARS.predicate.value} ?${DEFAULT_VARS.object.value}`;
+            }
+
             if ('pattern' in rule) {
                 constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${rule.pattern}}`;
             } else {
