@@ -1,8 +1,53 @@
-// Parse a SPARQL query to a JSON object
 import { Parser as SparqlParser } from 'sparqljs';
 import visitQuery, { COLLAPSED_FALSE } from './visitQuery.js';
 import replaceVars from './replaceVars.js';
 import { equalTerms } from './match.js';
+
+/**
+ * compileView.js
+ *
+ * This module compiles a flexible, user-provided "view specification" into
+ * a strictly structured, ready-to-use list of parsed SPARQL `CONSTRUCT`
+ * rules. The input (see `ruleSpecs` below) allows several shorthand forms for
+ * expressing constructs (class, property, pattern, or explicit construct
+ * text). The main purpose of the compilation is two-fold:
+ *
+ * 1) Turn the heterogeneous shorthand and explicit inputs into a canonical
+ *    list of parsed `CONSTRUCT` query objects (as produced by `sparqljs`).
+ *
+ * 2) Extend the original set of constructs with additional derived
+ *    constructs that capture interactions among rules. These derived rules
+ *    handle specialization (making a construct more specific using bindings
+ *    from other constructs) and generalization (making a construct more
+ *    generic by replacing bound roles with variables plus VALUES blocks).
+ *
+ * The compilation pipeline (high level):
+ * - Parse each rule spec into a `CONSTRUCT` query object.
+ * - Decompose multi-triple templates into single-triple constructs.
+ * - Produce specialized variants by co-specializing constructs against each
+ *   other (to capture interaction-driven bindings).
+ * - Produce generalized variants by replacing one or more bound roles with
+ *   variables and adding corresponding `VALUES` patterns.
+ * - Merge constructs that share the same template triple into a single
+ *   construct with a `UNION` over their `WHERE` clauses.
+ * - Order the produced constructs by decreasing specificity (fewer free
+ *   variables first) so downstream consumers can try the most specific
+ *   patterns first.
+ *
+ * Notes on formats:
+ * - `ruleSpecs` is an array of objects. Each object can use any of the
+ *   following shorthand properties (examples):
+ *     { class: '<IRI>' }
+ *     { property: '<IRI>' }
+ *     { pattern: '... WHERE pattern ...' }
+ *     { template: '?s a <Type> . ?s <p> ?o' }
+ *     { construct: 'CONSTRUCT { ... } WHERE { ... }' }
+ *     { exclude: true } // turns the rule into a construct that never matches
+ *
+ * - `commonPreamble` is a string that is prefixed to every construct text
+ *   before parsing (useful to provide PREFIX declarations shared by all
+ *   rules).
+ */
 
 const DEFAULT_VARS = Object.fromEntries(['subject', 'predicate', 'object'].map(l => [l, {
     termType: 'Variable',
@@ -15,6 +60,7 @@ function freeRoles(templateTriple) {
     );
 }
 
+// Roles that are bound (not variables) in a template triple
 function boundRoles(templateTriple) {
     return Object.keys(DEFAULT_VARS).filter(role =>
         templateTriple[role].termType !== 'Variable'
@@ -33,6 +79,10 @@ function nonEmptySubsets(items) {
 }
 
 function decomposeConstruct(construct) {
+    // Split a CONSTRUCT with multiple template triples into a list of
+    // single-triple CONSTRUCTs. For each template triple, replace the free
+    // variable role names with the canonical `DEFAULT_VARS` so subsequent
+    // comparisons and merging operate on a normalized form.
     return construct.template.map(templateTriple => replaceVars(
         construct,
         Object.fromEntries(
@@ -44,6 +94,10 @@ function decomposeConstruct(construct) {
 }
 
 function generalize(construct) {
+    // For each non-empty subset of bound roles produce a variant where those
+    // roles are turned into variables and the original values are provided
+    // via a `VALUES` block. This produces more generic forms of the
+    // construct which can match when only partial information is present.
     return nonEmptySubsets(boundRoles(construct.template[0])).map(rolesToGeneralize =>
         visitQuery(construct, {
             postVisitQuery: construct => {
@@ -69,6 +123,11 @@ function generalize(construct) {
 function cospecialize(construct, [otherConstruct, ...restOfOtherConstructs] ) {
     const constructFreeRoles = freeRoles(construct.template[0]);
     const constructBoundRoles = boundRoles(construct.template[0]);
+    // Co-specialization: if `construct` has roles that are free where
+    // `otherConstruct` has bound roles (and vice-versa for compatibility),
+    // produce specialized variants of `construct` by copying binding values
+    // from `otherConstruct` into the free roles. Recursively propagate
+    // specializations across the remaining constructs.
     if (otherConstruct === undefined) {
         return [];
     }
@@ -156,6 +215,21 @@ function orderByDecreasingSpecificity(constructs) {
     return constructByNumOfFreeVariables.flat();
 }
 
+/**
+ * Compile a list of rule specifications into normalized CONSTRUCT queries.
+ *
+ * Parameters:
+ * - `commonPreamble` (string): text prefixed to every construct before
+ *   parsing (useful for shared PREFIX declarations).
+ * - `ruleSpecs` (Array<Object>): each object is a rule specification which
+ *   can contain shorthand properties: `class`, `property`, `pattern`,
+ *   `template`, `construct`, and optionally `exclude`.
+ *
+ * Returns:
+ * - An array of parsed `sparqljs` CONSTRUCT query objects, expanded with
+ *   specialized and generalized variants, merged by template, and ordered
+ *   by decreasing specificity (fewest free variables first).
+ */
 export default function compileView({
     commonPreamble = '',
     ruleSpecs = []

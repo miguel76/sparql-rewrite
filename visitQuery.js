@@ -1,3 +1,17 @@
+/**
+ * visitQuery.js
+ *
+ * A lightweight tree-walking helper for parsed SPARQL query objects
+ * (as produced by `sparqljs`). The module exposes:
+ * - `COLLAPSED_TRUE` / `COLLAPSED_FALSE`: sentinel values used during
+ *    visitation to represent always-true / always-false pattern outcomes
+ *    (similar to TABLE_DEE/TABLE_DUM in algebraic rewriting literature).
+ * - `visitQuery(query, handlers)`: a configurable recursive visitor that
+ *    applies provided handler hooks while traversing query, pattern and
+ *    term nodes. Handlers can transform nodes or return sentinel values to
+ *    indicate collapse behavior.
+ */
+
 export const COLLAPSED_TRUE = {type: 'dee'}; // TABLE_DEE
 export const COLLAPSED_FALSE = {type: 'dum'}; // TABLE_DUM
 
@@ -27,6 +41,20 @@ export function convertCollapsed(patterns) {
     return patterns;
 }
 
+/**
+ * visitQuery(query, handlers)
+ *
+ * Walks a parsed SPARQL query structure and invokes handler hooks at
+ * different node types. Handlers are:
+ * - `preVisitQuery`, `postVisitQuery` for query nodes
+ * - `preVisitPattern`, `postVisitPattern` for pattern nodes
+ * - `visitTerm` for term nodes
+ *
+ * Each handler receives the current node and can return a transformed
+ * node. The visitor understands `COLLAPSED_TRUE`/`COLLAPSED_FALSE` sentinels
+ * and will propagate collapse semantics through constructs like `UNION` and
+ * `OPTIONAL`.
+ */
 export default function visitQuery(query, {
     preVisitQuery = (x) => (x),
     postVisitQuery = (x) => (x), 

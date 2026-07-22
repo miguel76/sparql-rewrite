@@ -1,5 +1,24 @@
 import visit from "./visitQuery.js";
 
+/**
+ * replaceVars.js
+ *
+ * Replace variable occurrences within a parsed SPARQL query structure.
+ *
+ * Parameters:
+ * - `query`: the parsed SPARQL query or pattern to transform.
+ * - `replacement`: an object mapping variable names (without `?`) to term
+ *   objects. If a variable maps to another variable term, variables are
+ *   renamed accordingly.
+ * - `defaultPrefix`: a string prefix applied to variables that are left
+ *   un-replaced to avoid name collisions (used when inlining subqueries).
+ * - `boundVariables`: an array of variable names that are considered bound
+ *   (affects handling of `BIND` patterns).
+ *
+ * The function returns a new query/pattern where variables are replaced and
+ * VALUES/BIND patterns are adjusted. It relies on `visitQuery` to traverse
+ * the parsed structure and apply the replacements consistently.
+ */
 export default function replaceVars(query, replacement, defaultPrefix = '', boundVariables = []) {
     return visit(query, {
         postVisitPattern: pattern => {

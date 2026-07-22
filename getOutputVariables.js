@@ -1,5 +1,19 @@
 import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
 
+/**
+ * getOutputVariables.js
+ *
+ * Compute the set of variable names that will be produced by a parsed
+ * SPARQL `query` object. This examines the query structure (SELECT
+ * projection, BGPs, VALUES, BINDs, UNION/group patterns) and returns an
+ * array of variable names (strings, without the leading `?`) that should be
+ * considered the output of the query.
+ *
+ * The function uses `visitQuery` to walk the parsed query and collects
+ * variable identifiers from terms and pattern-level constructs.
+ *
+ * Returns an array of variable names: `['s','p','o']` (no `?` prefix).
+ */
 export default function getOutputVariables(query) {
     return visit(query, {
         visitTerm: term => {

@@ -3,6 +3,23 @@ import tripleMatch from "./match.js";
 import replaceVars from "./replaceVars.js";
 import getOutputVariables from "./getOutputVariables.js";
 
+/**
+ * rewrite.js
+ *
+ * Rewrite a parsed SPARQL query by applying a set of `CONSTRUCT`-style
+ * rewrite `rules`. Each rule is a parsed `CONSTRUCT` query (as produced by
+ * `sparqljs`) whose `template` and `where` define how matching triples in a
+ * BGP should be expanded. The rewriter replaces matching triples with the
+ * rule's `WHERE` body (with variables substituted) while optionally
+ * preserving non-matching triples as source exposure.
+ *
+ * `queryRewrite(query, rules, exposeSource)`:
+ * - `query`: parsed SPARQL query object to transform.
+ * - `rules`: array of parsed CONSTRUCT queries (the compiled view rules).
+ * - `exposeSource`: when true, non-matching triples are preserved in the
+ *   rewritten query; when false, queries that contain non-matching triples
+ *   collapse to false.
+ */
 export default function queryRewrite(query, rules, exposeSource = true) {
     let subqueryCounter = 0;
     return visit(query, {
