@@ -6,22 +6,7 @@ import queryRewrite from './rewrite.js';
 import getOutputVariables from './getOutputVariables.js';
 import compileView from './compileView.js';
 
-var parser = new SparqlParser();
-
-const parsedRules = [
-    parser.parse(
-        'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
-        'PREFIX schema: <http://schema.org/> ' +
-        'CONSTRUCT {?p foaf:name ?n} { ?p schema:name ?n; foaf:knows ?other. }'),
-    parser.parse(
-        'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
-        'PREFIX schema: <http://schema.org/> ' +
-        'CONSTRUCT {?p foaf:knows ?n} { ?p schema:knows ?n }'),
-    parser.parse(
-        'PREFIX schema: <http://schema.org/> ' +
-        'CONSTRUCT WHERE { ?p schema:likes ?n }'),
-];
-
+const parser = new SparqlParser();
 
 const viewSpec = {
   commonPreamble:
@@ -40,38 +25,59 @@ const viewSpec = {
   ]
 }
 
-// console.log(JSON.stringify(parsedRules[2]));
+const query = `
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX ex: <http://example.org/>
 
-var parsedQuery = parser.parse(
-  'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
-  'PREFIX ex: <http://example.org/> ' +
-  'SELECT ' +
-  // '?mickey ?puffo (?tizio AS ?grotta) (AVG(?puffetta) + 1 AS ?anvedi) ' +
-  '* ' +
-  '{ {?mickey foaf:name "Mickey Mouse"@en; foaf:knows ?other. ?puffo foaf:knows ?puffetta. ' +
-  'OPTIONAL {_:a foaf:name _:b2}.} ' +
-  'UNION {?mickey foaf:name "Mickey Ratoncito"@es }. ' +
-  'VALUES ?puffo {ex:a ex:b}. ' +
-  'VALUES (?tizio ?caio) {(ex:tc ex:cc) (ex:td ex:cd)}. ' +
-  'BIND ("youkknow" AS ?sempronio). ' +
-  'FILTER (?puffetta = "puffa")}');
+SELECT *
+{
+  {
+    ?mickey foaf:name "Mickey Mouse"@en;
+      foaf:knows ?other.
+    ?puffo foaf:knows ?puffetta.
+    OPTIONAL {_:a foaf:name _:b2}.
+  } UNION {
+    ?mickey foaf:name "Mickey Ratoncito"@es
+  }.
+  VALUES ?puffo {ex:a ex:b}.
+  VALUES (?tizio ?caio) {(ex:tc ex:cc) (ex:td ex:cd)}.
+  BIND ("youkknow" AS ?sempronio).
+  FILTER (?puffetta = "puffa")
+}
+`;
 
-// console.log(parsedQuery.variables[0]);
-
-// console.log(JSON.stringify(parsedQuery));
-// console.log(getOuptutVariables(parsedQuery));
+const parsedQuery = parser.parse(query);
 
 var generator = new SparqlGenerator({ /* prefixes, baseIRI, factory, sparqlStar */ });
 
-// console.log(parsedQuery.variables);
+console.log(
+`
+## View Specification
+${JSON.stringify(viewSpec, null, 2)}
+`);
 
-// console.log(queryRewrite(parsedQuery, parsedRules, true));
-// console.log(generator.stringify(queryRewrite(parsedQuery, parsedRules, true)));
+var ruleCounter = 0;
+console.log(`
+## Compiled View
+${
+  compileView(viewSpec).map(construct =>
+`
+# Rule ${++ruleCounter}
+${generator.stringify(construct)}
+`
+  ).join('\n')
+}
+`);
 
-// console.log(parseRulesSpecs(viewSpec));
+console.log(
+`
+## Query
+${query}
+`);
 
-compileView(viewSpec).forEach(construct => {
-  console.log(generator.stringify(construct));
-});
+console.log(
+`
+## RewrittenQuery
+${generator.stringify(queryRewrite(parsedQuery, compileView(viewSpec)))}
+`);
 
-console.log(generator.stringify(queryRewrite(parsedQuery, compileView(viewSpec))));
