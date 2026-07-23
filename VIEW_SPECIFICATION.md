@@ -186,47 +186,8 @@ If `never: true`, the rule is compiled as a collapsed false condition instead of
 
 ```javascript
 {
+  property: 'schema:name',
   never: true
-}
-```
-
-## How `compileView()` Processes Rules
-
-The compiler performs the following pipeline:
-
-1. Convert each rule spec into a parsed SPARQL `CONSTRUCT` object.
-2. Prefix the result with `commonPreamble` before parsing.
-3. Decompose each multi-triple `CONSTRUCT` into one single-triple construct per template triple.
-4. Generate derived rules through:
-   - `cospecialize`: copy bindings from one construct into free roles of another construct
-   - `generalize`: turn bound roles into variables and add `VALUES` clauses to widen matching
-5. Merge rules that share the same normalized template triple into a single rule with a `UNION` over the different `WHERE` clauses.
-6. Order the returned rules by decreasing specificity, with fewer free variables first.
-
-This means the output of `compileView()` is not merely a copy of the original `ruleSpecs`; it is an expanded compiled rule set.
-
-## Normalized Output
-
-The result of `compileView()` is an array of parsed SPARQL `CONSTRUCT` objects. Each compiled construct is shaped like a `sparqljs` query object and is intended for downstream use by `queryRewrite()`.
-
-A compiled construct generally has the form:
-
-```javascript
-{
-  queryType: 'CONSTRUCT',
-  template: [...],
-  where: ...,
-  type: 'query',
-  prefixes: {...}
-}
-```
-
-For merged rules, the `where` field may become a `UNION` node:
-
-```javascript
-{
-  type: 'union',
-  patterns: [ ... ]
 }
 ```
 
@@ -262,7 +223,7 @@ const viewSpec = {
     },
     {
       property: 'foaf:knows',
-      pattern: '?p schema:knows ?n'
+      path: 'schema:knows'
     },
     {
       class: 'foaf:Person',
