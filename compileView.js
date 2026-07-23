@@ -40,13 +40,17 @@ import { equalTerms } from './match.js';
  *   1) A string: A complete SPARQL CONSTRUCT query
  *      'CONSTRUCT { ?p foaf:name ?n } { ?p schema:name ?n; foaf:knows ?other. }'
  *
- *   2) An object with shorthand properties:
- *      { class: '<IRI>' }
- *      { property: '<IRI>' }
- *      { pattern: '... WHERE pattern ...' }
- *      { template: '?s a <Type> . ?s <p> ?o' }
- *      { construct: 'CONSTRUCT { ... } WHERE { ... }' }
- *      { exclude: true } // turns the rule into a construct that never matches
+ *   2) An object with shorthand properties construct, class, property, template, pattern, or never:
+ *      If construct is provided, it is a complete SPARQL CONSTRUCT query.
+ *      Otherwise, either template, class, or property must be provided to define the template (otherwise, the template will be '?subject ?predicate ?object').
+ *      If template is provided, it must be a SPARQL CONSTRUCT template (e.g., '?s a <Type> . ?s <p> ?o').
+ *      If class is provided, it must be a class IRI (e.g., 'foaf:Person') and the template will be '?subject a <class>'.
+ *      If property is provided, it must be a property IRI (e.g., 'foaf:knows') and the template will be '?subject <property> ?object'.
+ *      To define the WHERE clause, either pattern, path, or type can be provided (if none is provided, the WHERE clause will be equivalent to the template).
+ *      If pattern is provided, it must be a SPARQL WHERE pattern (e.g., '?s ?p ?o').
+ *      If path is provided, it must be a SPARQL property path (e.g., 'foaf:knows/foaf:name') and the WHERE clause will be '?subject <path> ?object'.
+ *      If type is provided, it must be a class IRI (e.g., 'foaf:Person') and the WHERE clause will be '?subject a <type>'.
+ *      If never is true, the rule will never match and will be compiled to COLLAPSED_FALSE.
  *
  * - `commonPreamble` is a string that is prefixed to every construct text
  *   before parsing (useful to provide PREFIX declarations shared by all
@@ -228,8 +232,8 @@ function orderByDecreasingSpecificity(constructs) {
  * - `ruleSpecs` (Array<string|Object>): each element is a rule specification
  *   which can be:
  *     - A string: complete SPARQL CONSTRUCT query
- *     - An object with shorthand properties: `class`, `property`, `pattern`,
- *       `template`, `construct`, and optionally `exclude`.
+ *     - An object with optional shorthand properties: `construct`, `template`, `class`, `property`, `pattern`,
+ *       `type`, `path`, `never` (see module documentation).
  *
  * Returns:
  * - An array of parsed `sparqljs` CONSTRUCT query objects, expanded with
@@ -262,13 +266,17 @@ export default function compileView({
 
             if ('pattern' in rule) {
                 constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${rule.pattern}}`;
+            } else if ('path' in rule) {
+                constructTxt = `CONSTRUCT {${templateTxt}} WHERE {?${DEFAULT_VARS.subject.value} ${rule.path} ?${DEFAULT_VARS.object.value}}`;
+            } else if ('type' in rule) {
+                constructTxt = `CONSTRUCT {${templateTxt}} WHERE {?${DEFAULT_VARS.subject.value} a ${rule.type}}`;
             } else {
                 constructTxt = `CONSTRUCT WHERE {${templateTxt}}`;
             }
         } 
 
         const construct = parser.parse(commonPreamble + ' ' + constructTxt);
-        if ('exclude' in rule && rule.exclude) {
+        if ('never' in rule && rule.never) {
             construct.where = [COLLAPSED_FALSE];
         }
         return construct;
