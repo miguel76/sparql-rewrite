@@ -10,17 +10,13 @@ import getOutputVariables from "./getOutputVariables.js";
  * rewrite `rules`. Each rule is a parsed `CONSTRUCT` query (as produced by
  * `sparqljs`) whose `template` and `where` define how matching triples in a
  * BGP should be expanded. The rewriter replaces matching triples with the
- * rule's `WHERE` body (with variables substituted) while optionally
- * preserving non-matching triples as source exposure.
+ * rule's `WHERE` body (with variables substituted).
  *
- * `queryRewrite(query, rules, exposeSource)`:
+ * `queryRewrite(query, rules)`:
  * - `query`: parsed SPARQL query object to transform.
  * - `rules`: array of parsed CONSTRUCT queries (the compiled view rules).
- * - `exposeSource`: when true, non-matching triples are preserved in the
- *   rewritten query; when false, queries that contain non-matching triples
- *   collapse to false.
  */
-export default function queryRewrite(query, rules, exposeSource = true) {
+export default function queryRewrite(query, rules) {
     let subqueryCounter = 0;
     return visit(query, {
         postVisitPattern: pattern => {
@@ -40,11 +36,7 @@ export default function queryRewrite(query, rules, exposeSource = true) {
                         }
                     }
                     if (!matchFound) {
-                        if (exposeSource) {
-                            remainingBgpTriples.push(triplePattern);
-                        } else {
-                            return COLLAPSED_FALSE;
-                        }
+                        return COLLAPSED_FALSE;
                     }
                 }
                 if (remainingBgpTriples.length > 0) {
