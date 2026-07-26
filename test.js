@@ -9,20 +9,14 @@ import compileView from './compileView.js';
 const parser = new SparqlParser();
 
 const viewSpec = {
-  commonPreamble:
-    'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
-    'PREFIX schema: <http://schema.org/> ',
-  ruleSpecs: [
-    {
-      'construct': 'CONSTRUCT {?p foaf:name ?n} { ?p schema:name ?n; foaf:knows ?other. }'
-    },
-    {
-      'construct': 'CONSTRUCT {?p foaf:knows ?n} { ?p schema:knows ?n }'
-    },
-    {
-      'construct': 'CONSTRUCT WHERE { ?p schema:likes ?n }'
-    }
-  ]
+    commonPreamble:
+        'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
+        'PREFIX schema: <http://schema.org/> ',
+    ruleSpecs: [
+        'CONSTRUCT {?p foaf:name ?n. ?n a foaf:Name} { ?p schema:name ?n; foaf:knows ?other. }',
+        'CONSTRUCT {?p foaf:knows ?n} { ?p schema:knows ?n }',
+        'CONSTRUCT WHERE { ?p schema:likes ?n }'
+    ]
 }
 
 const query = `
@@ -31,18 +25,18 @@ PREFIX ex: <http://example.org/>
 
 SELECT *
 {
-  {
-    ?mickey foaf:name "Mickey Mouse"@en;
-      foaf:knows ?other.
-    ?puffo foaf:knows ?puffetta.
-    OPTIONAL {_:a foaf:name _:b2}.
-  } UNION {
-    ?mickey foaf:name "Mickey Ratoncito"@es
-  }.
-  VALUES ?puffo {ex:a ex:b}.
-  VALUES (?tizio ?caio) {(ex:tc ex:cc) (ex:td ex:cd)}.
-  BIND ("youkknow" AS ?sempronio).
-  FILTER (?puffetta = "puffa")
+    {
+        ?mickey foaf:name "Mickey Mouse"@en;
+            foaf:knows ?other.
+        ?puffo foaf:knows ?puffetta.
+        OPTIONAL {_:a foaf:name _:b2}.
+    } UNION {
+        ?mickey foaf:name "Mickey Ratoncito"@es
+    }.
+    VALUES ?puffo {ex:a ex:b}.
+    VALUES (?tizio ?caio) {(ex:tc ex:cc) (ex:td ex:cd)}.
+    BIND ("youkknow" AS ?sempronio).
+    FILTER (?puffetta = "puffa")
 }
 `;
 
