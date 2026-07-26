@@ -276,7 +276,7 @@ export default function compileView({
         } 
 
         const construct = parser.parse(commonPreamble + ' ' + constructTxt);
-        if ('never' in rule && rule.never) {
+        if (typeof rule !== "string" && 'never' in rule && rule.never) {
             construct.where = [COLLAPSED_FALSE];
         }
         return construct;
