@@ -47,10 +47,7 @@ export default function tripleMatch(specificTriplePattern, genericTriplePattern)
             }
         } else {
             if (specificTerms[i].termType === 'Variable') {
-                extraClauses.push({
-                    type: 'values',
-                    values: [object.fromEntries([[`?${specificTerms[i].value}`,genericTerms[i]]])]
-                });
+                return null;
             } else {
                 if (!equalTerms(genericTerms[i], specificTerms[i])) {
                     return null;
