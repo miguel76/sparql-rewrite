@@ -251,15 +251,19 @@ function orderByDecreasingSpecificity(constructs) {
  */
 export default function compileView({
     commonPreamble = '',
-    ruleSpecs = []
+    ruleSpecs = [],
+    defaultValues = {},
+    defaultField = 'construct'
 } = {}) {
     const parser = new SparqlParser();
-    function ruleSpecToConstruct(rule) {
+    function ruleSpecToConstruct(rule, defaultValues = {}, defaultField = 'construct') {
 
         let constructTxt;
         if (typeof rule === "string") {
-            constructTxt = rule;
-        } else if ('construct' in rule) {
+            rule = { [defaultField]: rule };
+        }
+        rule = { ...defaultValues, ...rule };
+        if ('construct' in rule) {
             constructTxt = rule.construct;
         } else {
             let templateTxt;
@@ -273,25 +277,35 @@ export default function compileView({
                 templateTxt = `?${DEFAULT_VARS.subject.value} ?${DEFAULT_VARS.predicate.value} ?${DEFAULT_VARS.object.value}`;
             }
 
+            let patternTxt;
             if ('pattern' in rule) {
-                constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${rule.pattern}}`;
+                patternTxt = rule.pattern;
             } else if ('path' in rule) {
-                constructTxt = `CONSTRUCT {${templateTxt}} WHERE {?${DEFAULT_VARS.subject.value} ${rule.path} ?${DEFAULT_VARS.object.value}}`;
+                patternTxt = `?${DEFAULT_VARS.subject.value} ${rule.path} ?${DEFAULT_VARS.object.value}`;
             } else if ('type' in rule) {
-                constructTxt = `CONSTRUCT {${templateTxt}} WHERE {?${DEFAULT_VARS.subject.value} a ${rule.type}}`;
+                patternTxt = `?${DEFAULT_VARS.subject.value} a ${rule.type}`;
             } else {
-                constructTxt = `CONSTRUCT WHERE {${templateTxt}}`;
+                patternTxt = templateTxt;
             }
-        } 
-
+            if ('graph' in rule) {
+                patternTxt = `GRAPH ${rule.graph} { ${patternTxt} }`;
+            }
+            if ('service' in rule) {
+                patternTxt = `SERVICE ${rule.service} { ${patternTxt} }`;
+            }
+            constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${patternTxt}}`;
+        }
         const construct = parser.parse(commonPreamble + ' ' + constructTxt);
-        if (typeof rule !== "string" && 'never' in rule && rule.never) {
+        if ('uniqueTemplate' in rule && rule.uniqueTemplate) {
+            construct.uniqueTemplate = true;
+        }
+        if ('never' in rule && rule.never) {
             construct.where = [COLLAPSED_FALSE];
         }
         return construct;
     }
 
-    const baseConstructs = ruleSpecs.map(ruleSpecToConstruct).flatMap(decomposeConstruct);
+    const baseConstructs = ruleSpecs.map(r => ruleSpecToConstruct(r, defaultValues, defaultField)).flatMap(decomposeConstruct);
     const specializedConstructs = cospecializeAll(baseConstructs);
     const generalizedConstructs = baseConstructs.flatMap(generalize);
     const constructs = merge([
