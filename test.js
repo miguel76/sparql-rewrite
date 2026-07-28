@@ -15,9 +15,23 @@ const view = {
         uniqueTemplate: true,
         prefixes: {
             foaf: 'http://xmlns.com/foaf/0.1/',
-            schema: 'http://schema.org/'
+            schema: 'http://schema.org/',
+            ciccio: 'http://ciccio.org/'
         }
     },
+    subViews: [
+        {
+            rules: [
+                'CONSTRUCT {?p foaf:name ?n. ?n a foaf:Name} { ?p ciccio:name ?n; foaf:knows ?other. }',
+                'CONSTRUCT {?p foaf:knows ?n} { ?p ciccio:knows ?n }'
+            ]
+        },
+        {
+            rules: [
+                'CONSTRUCT WHERE { ?p ciccio:likes ?n }'
+            ]
+        }
+    ],
     rules: [
         {},
         'CONSTRUCT {?p foaf:name ?n. ?n a foaf:Name} { ?p schema:name ?n; foaf:knows ?other. }',

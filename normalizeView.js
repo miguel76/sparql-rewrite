@@ -71,8 +71,10 @@ export function ruleToConstruct(rule, defaults, parser) {
     return construct;
 }
 
-export default function normalizeView({ rules, defaults = {}, subViews = [] }) {
+export default function normalizeView({ rules, defaults = {}, subViews = []}, parser = new SparqlParser()) {
     defaults = {key: 'construct', ...defaults};
-    const parser = new SparqlParser();
-    return rules.map(r => ruleToConstruct(r, defaults, parser));
+    return [
+        ...rules.map(r => ruleToConstruct(r, defaults, parser)),
+        ...subViews.flatMap(subView => normalizeView({...subView, defaults: {...defaults, ...subView.defaults} }, parser ))
+    ];
 }
