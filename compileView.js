@@ -8,7 +8,7 @@ import { equalTerms } from './match.js';
  *
  * This module compiles a flexible, user-provided "view specification" into
  * a strictly structured, ready-to-use list of parsed SPARQL `CONSTRUCT`
- * rules. The input (see `ruleSpecs` below) allows several shorthand forms for
+ * rules. The input (see `rules` below) allows several shorthand forms for
  * expressing constructs (class, property, pattern, or explicit construct
  * text). The main purpose of the compilation is two-fold:
  *
@@ -35,7 +35,7 @@ import { equalTerms } from './match.js';
  *   patterns first.
  *
  * Notes on formats:
- * - `ruleSpecs` is an array where each element can be:
+ * - `rules` is an array where each element can be:
  *
  *   1) A string: A complete SPARQL CONSTRUCT query
  *      'CONSTRUCT { ?p foaf:name ?n } { ?p schema:name ?n; foaf:knows ?other. }'
@@ -241,7 +241,7 @@ function orderByDecreasingSpecificity(constructs) {
  * Parameters:
  * - `commonPreamble` (string): text prefixed to every construct before
  *   parsing (useful for shared PREFIX declarations).
- * - `ruleSpecs` (Array<string|Object>): each element is a rule specification
+ * - `rules` (Array<string|Object>): each element is a rule specification
  *   which can be:
  *     - A string: complete SPARQL CONSTRUCT query
  *     - An object with optional shorthand properties: `construct`, `template`, `class`, `property`, `pattern`,
@@ -253,19 +253,33 @@ function orderByDecreasingSpecificity(constructs) {
  *   by decreasing specificity (fewest free variables first).
  */
 export default function compileView({
-    commonPreamble = '',
-    ruleSpecs = [],
-    defaultValues = {},
-    defaultField = 'construct'
-} = {}) {
+    rules = [],
+    defaults = {}
+}) {
+    defaults = {key: 'construct', ...defaults};
     const parser = new SparqlParser();
-    function ruleSpecToConstruct(rule, defaultValues = {}, defaultField = 'construct') {
+    function ruleSpecToConstruct(rule, defaults) {
+
+        if (typeof rule === "string") {
+            rule = { [defaults.key]: rule };
+        }
+        rule = { ...defaults, ...rule };
+
+        let preambleTxt = '';
+        if ('preamble' in rule) {
+            preambleTxt = rule.preamble;
+        } else {
+            if ('base' in rule) {
+                preambleTxt += `BASE <${rule.base}> `;
+            }
+            if ('prefixes' in rule) {
+                preambleTxt += Object.entries(rule.prefixes).map(([prefix, iri]) =>
+                    `PREFIX ${prefix}: <${iri}> `
+                ).join('');
+            }
+        }
 
         let constructTxt;
-        if (typeof rule === "string") {
-            rule = { [defaultField]: rule };
-        }
-        rule = { ...defaultValues, ...rule };
         if ('construct' in rule) {
             constructTxt = rule.construct;
         } else {
@@ -298,7 +312,7 @@ export default function compileView({
             }
             constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${patternTxt}}`;
         }
-        const construct = parser.parse(commonPreamble + ' ' + constructTxt);
+        const construct = parser.parse(preambleTxt + ' ' + constructTxt);
         construct.uniqueTemplate = 'uniqueTemplate' in rule && rule.uniqueTemplate;
         if ('never' in rule && rule.never) {
             construct.where = [COLLAPSED_FALSE];
@@ -306,7 +320,7 @@ export default function compileView({
         return construct;
     }
 
-    const baseConstructs = ruleSpecs.map(r => ruleSpecToConstruct(r, defaultValues, defaultField)).flatMap(decomposeConstruct);
+    const baseConstructs = rules.map(r => ruleSpecToConstruct(r, defaults)).flatMap(decomposeConstruct);
     const specializedConstructs = cospecializeAll(baseConstructs);
     const generalizedConstructs = baseConstructs.flatMap(generalize);
     const constructs = merge([
