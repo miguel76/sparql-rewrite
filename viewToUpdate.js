@@ -19,14 +19,9 @@ function constructToUpdate(construct, graphIRI) {
     }
 }
 
-export default function asUpdate({
-    rules,
-    defaults = {},
-    subViews = []
-}, graphIRI) {
-    const constructs = normalizeView({ rules, defaults, subViews });
+export default function viewToUpdate(normalizedView, graphIRI) {    
     return {
         "type": "update",
-        "updates": constructs.map(c => constructToUpdate(c, graphIRI))
+        "updates": normalizedView.map(c => constructToUpdate(c, graphIRI))
     }
 };

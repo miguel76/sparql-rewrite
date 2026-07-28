@@ -176,12 +176,8 @@ function orderByDecreasingSpecificity(constructs) {
     return constructByNumOfFreeVariables.flat();
 }
 
-export default function compileView({
-    rules,
-    defaults = {},
-    subViews = []
-}) {
-    const baseConstructs = normalizeView({ rules, defaults, subViews }).flatMap(decomposeConstruct);
+export default function compileView(normalizedView) {
+    const baseConstructs = normalizedView.flatMap(decomposeConstruct);
     const specializedConstructs = cospecializeAll(baseConstructs);
     const generalizedConstructs = baseConstructs.flatMap(generalize);
     const constructs = merge([

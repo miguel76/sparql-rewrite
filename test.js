@@ -5,11 +5,12 @@ import tripleMatch from './match.js';
 import queryRewrite from './rewrite.js';
 import getOutputVariables from './getOutputVariables.js';
 import compileView from './compileView.js';
-import asUpdate from './asUpdate.js';
+import viewToUpdate from './viewToUpdate.js';
+import normalizeView from './normalizeView.js';
 
 const parser = new SparqlParser();
 
-const viewSpec = {
+const view = {
     defaults: {
         uniqueTemplate: true,
         prefixes: {
@@ -24,6 +25,8 @@ const viewSpec = {
         'CONSTRUCT WHERE { ?p schema:likes ?n }'
     ]
 }
+
+const normalizedView = normalizeView(view);
 
 const query = `
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
@@ -53,14 +56,16 @@ var generator = new SparqlGenerator({ /* prefixes, baseIRI, factory, sparqlStar 
 console.log(
 `
 ## View Specification
-${JSON.stringify(viewSpec, null, 2)}
+${JSON.stringify(view, null, 2)}
 `);
+
+const compiledView = compileView(normalizedView);
 
 var ruleCounter = 0;
 console.log(`
 ## Compiled View
 ${
-  compileView(viewSpec).map(construct =>
+  compiledView.map(construct =>
 `
 # Rule ${++ruleCounter}
 ${generator.stringify(construct)}
@@ -78,12 +83,12 @@ ${query}
 console.log(
 `
 ## RewrittenQuery
-${generator.stringify(queryRewrite(parsedQuery, compileView(viewSpec)))}
+${generator.stringify(queryRewrite(parsedQuery, compiledView))}
 `);
 
 console.log(
 `
 ## View as Update
-${generator.stringify(asUpdate(viewSpec, 'http://example.org/graph'))}
+${generator.stringify(viewToUpdate(normalizedView, 'http://example.org/graph'))}
 `);
 
