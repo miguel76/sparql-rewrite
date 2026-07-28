@@ -75,7 +75,7 @@ function boundRoles(templateTriple) {
     );
 }
 
-function subsets([ first, ...rest ]) {
+function subsets([first, ...rest]) {
     if (first === undefined)
         return [[]];
     const restSubsets = subsets(rest);
@@ -103,7 +103,7 @@ function decomposeConstruct(construct) {
     return construct.template.map(templateTriple => replaceVars(
         replaceTemplate(construct, [templateTriple]),
         Object.fromEntries(
-            freeRoles(templateTriple).map(role => 
+            freeRoles(templateTriple).map(role =>
                 [templateTriple[role].value, DEFAULT_VARS[role]]
             )
         )
@@ -137,7 +137,7 @@ function generalize(construct) {
     );
 }
 
-function cospecialize(construct, [otherConstruct, ...restOfOtherConstructs] ) {
+function cospecialize(construct, [otherConstruct, ...restOfOtherConstructs]) {
     const constructFreeRoles = freeRoles(construct.template[0]);
     const constructBoundRoles = boundRoles(construct.template[0]);
     // Co-specialization: if `construct` has roles that are free where
