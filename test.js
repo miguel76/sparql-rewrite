@@ -5,14 +5,20 @@ import tripleMatch from './match.js';
 import queryRewrite from './rewrite.js';
 import getOutputVariables from './getOutputVariables.js';
 import compileView from './compileView.js';
+import asUpdate from './asUpdate.js';
 
 const parser = new SparqlParser();
 
 const viewSpec = {
-    commonPreamble:
-        'PREFIX foaf: <http://xmlns.com/foaf/0.1/> ' +
-        'PREFIX schema: <http://schema.org/> ',
-    ruleSpecs: [
+    defaults: {
+        uniqueTemplate: true,
+        prefixes: {
+            foaf: 'http://xmlns.com/foaf/0.1/',
+            schema: 'http://schema.org/'
+        }
+    },
+    rules: [
+        {},
         'CONSTRUCT {?p foaf:name ?n. ?n a foaf:Name} { ?p schema:name ?n; foaf:knows ?other. }',
         'CONSTRUCT {?p foaf:knows ?n} { ?p schema:knows ?n }',
         'CONSTRUCT WHERE { ?p schema:likes ?n }'
@@ -73,5 +79,11 @@ console.log(
 `
 ## RewrittenQuery
 ${generator.stringify(queryRewrite(parsedQuery, compileView(viewSpec)))}
+`);
+
+console.log(
+`
+## View as Update
+${generator.stringify(asUpdate(viewSpec, 'http://example.org/graph'))}
 `);
 
