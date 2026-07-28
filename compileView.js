@@ -138,19 +138,22 @@ function generalize(construct) {
 }
 
 function cospecialize(construct, [otherConstruct, ...restOfOtherConstructs]) {
-    const constructFreeRoles = freeRoles(construct.template[0]);
-    const constructBoundRoles = boundRoles(construct.template[0]);
     // Co-specialization: if `construct` has roles that are free where
     // `otherConstruct` has bound roles (and vice-versa for compatibility),
     // produce specialized variants of `construct` by copying binding values
     // from `otherConstruct` into the free roles. Recursively propagate
     // specializations across the remaining constructs.
-    if (otherConstruct === undefined) {
+    if (construct.uniqueTemplate || otherConstruct === undefined) {
         return [];
     }
+    if (otherConstruct.uniqueTemplate) {
+        return cospecialize(construct, restOfOtherConstructs);
+    }
+    let specializations = [];
+    const constructFreeRoles = freeRoles(construct.template[0]);
+    const constructBoundRoles = boundRoles(construct.template[0]);
     const otherConstructFreeRoles = freeRoles(otherConstruct.template[0]);
     const otherConstructBoundRoles = boundRoles(otherConstruct.template[0]);
-    let specializations = [];
     if (
         constructBoundRoles.every(boundRole =>
             otherConstructFreeRoles.indexOf(boundRole) >= 0 ||
@@ -296,9 +299,7 @@ export default function compileView({
             constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${patternTxt}}`;
         }
         const construct = parser.parse(commonPreamble + ' ' + constructTxt);
-        if ('uniqueTemplate' in rule && rule.uniqueTemplate) {
-            construct.uniqueTemplate = true;
-        }
+        construct.uniqueTemplate = 'uniqueTemplate' in rule && rule.uniqueTemplate;
         if ('never' in rule && rule.never) {
             construct.where = [COLLAPSED_FALSE];
         }
