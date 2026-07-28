@@ -1,66 +1,7 @@
-import { Parser as SparqlParser } from 'sparqljs';
 import visitQuery, { COLLAPSED_FALSE } from './visitQuery.js';
 import replaceVars from './replaceVars.js';
 import { equalTerms } from './match.js';
-
-/**
- * compileView.js
- *
- * This module compiles a flexible, user-provided "view specification" into
- * a strictly structured, ready-to-use list of parsed SPARQL `CONSTRUCT`
- * rules. The input (see `rules` below) allows several shorthand forms for
- * expressing constructs (class, property, pattern, or explicit construct
- * text). The main purpose of the compilation is two-fold:
- *
- * 1) Turn the heterogeneous shorthand and explicit inputs into a canonical
- *    list of parsed `CONSTRUCT` query objects (as produced by `sparqljs`).
- *
- * 2) Extend the original set of constructs with additional derived
- *    constructs that capture interactions among rules. These derived rules
- *    handle specialization (making a construct more specific using bindings
- *    from other constructs) and generalization (making a construct more
- *    generic by replacing bound roles with variables plus VALUES blocks).
- *
- * The compilation pipeline (high level):
- * - Parse each rule spec into a `CONSTRUCT` query object.
- * - Decompose multi-triple templates into single-triple constructs.
- * - Produce specialized variants by co-specializing constructs against each
- *   other (to capture interaction-driven bindings).
- * - Produce generalized variants by replacing one or more bound roles with
- *   variables and adding corresponding `VALUES` patterns.
- * - Merge constructs that share the same template triple into a single
- *   construct with a `UNION` over their `WHERE` clauses.
- * - Order the produced constructs by decreasing specificity (fewer free
- *   variables first) so downstream consumers can try the most specific
- *   patterns first.
- *
- * Notes on formats:
- * - `rules` is an array where each element can be:
- *
- *   1) A string: A complete SPARQL CONSTRUCT query
- *      'CONSTRUCT { ?p foaf:name ?n } { ?p schema:name ?n; foaf:knows ?other. }'
- *
- *   2) An object with shorthand properties construct, class, property, template, pattern, or never:
- *      If construct is provided, it is a complete SPARQL CONSTRUCT query.
- *      Otherwise, either template, class, or property must be provided to define the template (otherwise, the template will be '?subject ?predicate ?object').
- *      If template is provided, it must be a SPARQL CONSTRUCT template (e.g., '?s a <Type> . ?s <p> ?o').
- *      If class is provided, it must be a class IRI (e.g., 'foaf:Person') and the template will be '?subject a <class>'.
- *      If property is provided, it must be a property IRI (e.g., 'foaf:knows') and the template will be '?subject <property> ?object'.
- *      To define the WHERE clause, either pattern, path, or type can be provided (if none is provided, the WHERE clause will be equivalent to the template).
- *      If pattern is provided, it must be a SPARQL WHERE pattern (e.g., '?s ?p ?o').
- *      If path is provided, it must be a SPARQL property path (e.g., 'foaf:knows/foaf:name') and the WHERE clause will be '?subject <path> ?object'.
- *      If type is provided, it must be a class IRI (e.g., 'foaf:Person') and the WHERE clause will be '?subject a <type>'.
- *      If never is true, the rule will never match and will be compiled to COLLAPSED_FALSE.
- *
- * - `commonPreamble` is a string that is prefixed to every construct text
- *   before parsing (useful to provide PREFIX declarations shared by all
- *   rules).
- */
-
-const DEFAULT_VARS = Object.fromEntries(['subject', 'predicate', 'object'].map(l => [l, {
-    termType: 'Variable',
-    value: l
-}]));
+import normalizeView, { DEFAULT_VARS } from './normalizeView.js';
 
 function freeRoles(templateTriple) {
     return Object.keys(DEFAULT_VARS).filter(role =>
@@ -235,92 +176,12 @@ function orderByDecreasingSpecificity(constructs) {
     return constructByNumOfFreeVariables.flat();
 }
 
-/**
- * Compile a list of rule specifications into normalized CONSTRUCT queries.
- *
- * Parameters:
- * - `commonPreamble` (string): text prefixed to every construct before
- *   parsing (useful for shared PREFIX declarations).
- * - `rules` (Array<string|Object>): each element is a rule specification
- *   which can be:
- *     - A string: complete SPARQL CONSTRUCT query
- *     - An object with optional shorthand properties: `construct`, `template`, `class`, `property`, `pattern`,
- *       `type`, `path`, `never` (see module documentation).
- *
- * Returns:
- * - An array of parsed `sparqljs` CONSTRUCT query objects, expanded with
- *   specialized and generalized variants, merged by template, and ordered
- *   by decreasing specificity (fewest free variables first).
- */
 export default function compileView({
-    rules = [],
-    defaults = {}
+    rules,
+    defaults = {},
+    subViews = []
 }) {
-    defaults = {key: 'construct', ...defaults};
-    const parser = new SparqlParser();
-    function ruleSpecToConstruct(rule, defaults) {
-
-        if (typeof rule === "string") {
-            rule = { [defaults.key]: rule };
-        }
-        rule = { ...defaults, ...rule };
-
-        let preambleTxt = '';
-        if ('preamble' in rule) {
-            preambleTxt = rule.preamble;
-        } else {
-            if ('base' in rule) {
-                preambleTxt += `BASE <${rule.base}> `;
-            }
-            if ('prefixes' in rule) {
-                preambleTxt += Object.entries(rule.prefixes).map(([prefix, iri]) =>
-                    `PREFIX ${prefix}: <${iri}> `
-                ).join('');
-            }
-        }
-
-        let constructTxt;
-        if ('construct' in rule) {
-            constructTxt = rule.construct;
-        } else {
-            let templateTxt;
-            if ('template' in rule) {
-                templateTxt = rule.template;
-            } else if ('class' in rule) {
-                templateTxt = `?${DEFAULT_VARS.subject.value} a ${rule.class}`;
-            } else if ('property' in rule) {
-                templateTxt = `?${DEFAULT_VARS.subject.value} ${rule.property} ?${DEFAULT_VARS.object.value}`;
-            } else {
-                templateTxt = `?${DEFAULT_VARS.subject.value} ?${DEFAULT_VARS.predicate.value} ?${DEFAULT_VARS.object.value}`;
-            }
-
-            let patternTxt;
-            if ('pattern' in rule) {
-                patternTxt = rule.pattern;
-            } else if ('path' in rule) {
-                patternTxt = `?${DEFAULT_VARS.subject.value} ${rule.path} ?${DEFAULT_VARS.object.value}`;
-            } else if ('type' in rule) {
-                patternTxt = `?${DEFAULT_VARS.subject.value} a ${rule.type}`;
-            } else {
-                patternTxt = templateTxt;
-            }
-            if ('graph' in rule) {
-                patternTxt = `GRAPH ${rule.graph} { ${patternTxt} }`;
-            }
-            if ('service' in rule) {
-                patternTxt = `SERVICE ${rule.service} { ${patternTxt} }`;
-            }
-            constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${patternTxt}}`;
-        }
-        const construct = parser.parse(preambleTxt + ' ' + constructTxt);
-        construct.uniqueTemplate = 'uniqueTemplate' in rule && rule.uniqueTemplate;
-        if ('never' in rule && rule.never) {
-            construct.where = [COLLAPSED_FALSE];
-        }
-        return construct;
-    }
-
-    const baseConstructs = rules.map(r => ruleSpecToConstruct(r, defaults)).flatMap(decomposeConstruct);
+    const baseConstructs = normalizeView({ rules, defaults, subViews }).flatMap(decomposeConstruct);
     const specializedConstructs = cospecializeAll(baseConstructs);
     const generalizedConstructs = baseConstructs.flatMap(generalize);
     const constructs = merge([
