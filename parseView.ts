@@ -1,14 +1,52 @@
+import type * as SparqlJs from 'sparqljs';
 import { Parser as SparqlParser } from 'sparqljs';
-import visitQuery, { COLLAPSED_FALSE } from './visitQuery.js';
-import replaceVars from './replaceVars.js';
-import { equalTerms } from './match.js';
 
-export const DEFAULT_VARS = Object.fromEntries(['subject', 'predicate', 'object'].map(l => [l, {
+type RuleObject = {
+    preamble?: string,
+    base?: string,
+    prefixes?: Record<string, string>,
+    construct?: string,
+    template?: string,
+    class?: string,
+    property?: string,
+    pattern?: string,
+    path?: string,
+    type?: string,
+    graph?: string,
+    service?: string,
+    uniqueTemplate?: boolean
+};
+
+export type Rule = string | RuleObject;
+
+type Defaults = RuleObject & {
+    key?: string,
+    inherit?: boolean
+};
+
+export type View = {
+    rules: Rule[],
+    defaults?: Defaults,
+    subViews?: View[]
+};
+
+type AnnotatedConstructQueryTxt = {
+    construct: string,
+    uniqueTemplate?: boolean
+}
+
+export type AnnotatedConstructQuery = SparqlJs.ConstructQuery & {
+    uniqueTemplate?: boolean
+};
+
+export type ParsedView = AnnotatedConstructQuery[];
+
+export const DEFAULT_VARS = Object.fromEntries(['subject', 'predicate', 'object'].map((l: any) => [l, {
     termType: 'Variable',
     value: l
 }]));
 
-export function ruleToConstructTxt(rule, defaults) {
+export function ruleToConstructTxt(rule: Rule, defaults: Defaults): AnnotatedConstructQueryTxt {
     if (typeof rule === "string") {
         rule = { [defaults.key]: rule };
     }
@@ -28,11 +66,11 @@ export function ruleToConstructTxt(rule, defaults) {
         }
     }
 
-    let constructTxt;
+    let constructTxt: any;
     if ('construct' in rule) {
         constructTxt = rule.construct;
     } else {
-        let templateTxt;
+        let templateTxt: any;
         if ('template' in rule) {
             templateTxt = rule.template;
         } else if ('class' in rule) {
@@ -43,7 +81,7 @@ export function ruleToConstructTxt(rule, defaults) {
             templateTxt = `?${DEFAULT_VARS.subject.value} ?${DEFAULT_VARS.predicate.value} ?${DEFAULT_VARS.object.value}`;
         }
 
-        let patternTxt;
+        let patternTxt: any;
         if ('pattern' in rule) {
             patternTxt = rule.pattern;
         } else if ('path' in rule) {
@@ -61,20 +99,19 @@ export function ruleToConstructTxt(rule, defaults) {
         }
         constructTxt = `CONSTRUCT {${templateTxt}} WHERE {${patternTxt}}`;
     }
-    return preambleTxt + ' ' + constructTxt;
+    return { construct: preambleTxt + ' ' + constructTxt, uniqueTemplate: 'uniqueTemplate' in rule ? rule.uniqueTemplate : undefined };
 }
 
-export function ruleToConstruct(rule, defaults, parser) {
-    const construct = parser.parse(ruleToConstructTxt(rule, defaults));
-    rule = { ...defaults, ...rule };
-    construct.uniqueTemplate = 'uniqueTemplate' in rule && rule.uniqueTemplate;
-    return construct;
+export function ruleToConstruct(rule: Rule, defaults: Defaults, parser: SparqlJs.SparqlParser): AnnotatedConstructQuery {
+    const { construct, uniqueTemplate } = ruleToConstructTxt(rule, defaults);
+    return {...parser.parse(construct) as SparqlJs.ConstructQuery, uniqueTemplate};
 }
 
-export default function normalizeView({ rules, defaults = {}, subViews = []}, parser = new SparqlParser()) {
-    defaults = {key: 'construct', ...defaults};
+export default function parseView(view: View, parser: SparqlJs.SparqlParser = new SparqlParser()): ParsedView {
+    let {rules = [], defaults = {}, subViews = []} = view;
+    defaults = {key: 'construct', inherit: true, ...defaults};
     return [
         ...rules.map(r => ruleToConstruct(r, defaults, parser)),
-        ...subViews.flatMap(subView => normalizeView({...subView, defaults: {...defaults, ...subView.defaults} }, parser ))
+        ...subViews.flatMap(subView => parseView({...subView, defaults: {...(defaults.inherit ? defaults : {}), ...subView.defaults} }, parser))
     ];
 }

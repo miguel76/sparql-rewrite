@@ -13,9 +13,12 @@
   "license": "MIT",
   "author": "miguel.ceriani@gmail.com",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "node --test test.js"
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/test.js",
+    "test": "node --test dist/test.js"
   },
   "dependencies": {
     "sparqljs": "^3.7.3"
@@ -23,8 +26,11 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@eslint/json": "^2.0.1",
+    "@types/node": "^20.0.0",
+    "@types/sparqljs": "^3.1.12",
     "chai": "^5.2.0",
     "eslint": "^10.7.0",
-    "globals": "^17.7.0"
+    "globals": "^17.7.0",
+    "typescript": "^5.4.2"
   }
 }

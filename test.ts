@@ -1,12 +1,10 @@
 import { Parser as SparqlParser } from 'sparqljs';
 import { Generator as SparqlGenerator } from 'sparqljs';
-import replaceVars from './replaceVars.js';
-import tripleMatch from './match.js';
 import queryRewrite from './rewrite.js';
-import getOutputVariables from './getOutputVariables.js';
 import compileView from './compileView.js';
 import viewToUpdate from './viewToUpdate.js';
-import normalizeView from './normalizeView.js';
+import parseView from './parseView.js';
+import type * as SparqlJs from 'sparqljs';
 
 const parser = new SparqlParser();
 
@@ -40,7 +38,7 @@ const view = {
     ]
 }
 
-const normalizedView = normalizeView(view);
+const normalizedView = parseView(view);
 
 const query = `
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
@@ -63,9 +61,9 @@ SELECT *
 }
 `;
 
-const parsedQuery = parser.parse(query);
+const parsedQuery: SparqlJs.ConstructQuery = parser.parse(query);
 
-var generator = new SparqlGenerator({ /* prefixes, baseIRI, factory, sparqlStar */ });
+var generator = new SparqlGenerator({});
 
 console.log(
 `
@@ -105,4 +103,3 @@ console.log(
 ## View as Update
 ${generator.stringify(viewToUpdate(normalizedView, 'http://example.org/graph'))}
 `);
-

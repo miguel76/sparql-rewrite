@@ -1,7 +1,6 @@
-import normalizeView from './normalizeView.js';
+import type * as SparqlJs from 'sparqljs';
 
-function constructToUpdate(construct, graphIRI) {
-    console.log(construct);
+function constructToUpdate(construct: SparqlJs.ConstructQuery, graphIRI: string) {
     return {
         "updateType": "insertdelete",
         "insert": [
@@ -16,12 +15,12 @@ function constructToUpdate(construct, graphIRI) {
         ],
         delete: [],
         "where": construct.where
-    }
+    } as SparqlJs.UpdateOperation;
 }
 
-export default function viewToUpdate(normalizedView, graphIRI) {    
+export default function viewToUpdate(normalizedView: SparqlJs.ConstructQuery[], graphIRI: string) {    
     return {
         "type": "update",
         "updates": normalizedView.map(c => constructToUpdate(c, graphIRI))
-    }
+    } as SparqlJs.Update;
 };

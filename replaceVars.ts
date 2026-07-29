@@ -1,32 +1,19 @@
-import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
+import type * as SparqlJs from 'sparqljs';
+import visit, { QueryComponent } from "./visitQuery.js";
 import { equalTerms } from './match.js';
 
-/**
- * replaceVars.js
- *
- * Replace variable occurrences within a parsed SPARQL query structure.
- *
- * Parameters:
- * - `query`: the parsed SPARQL query or pattern to transform.
- * - `replacement`: an object mapping variable names (without `?`) to term
- *   objects. If a variable maps to another variable term, variables are
- *   renamed accordingly.
- * - `defaultPrefix`: a string prefix applied to variables that are left
- *   un-replaced to avoid name collisions (used when inlining subqueries).
- * - `boundVariables`: an array of variable names that are considered bound
- *   (affects handling of `BIND` patterns).
- *
- * The function returns a new query/pattern where variables are replaced and
- * VALUES/BIND patterns are adjusted. It relies on `visitQuery` to traverse
- * the parsed structure and apply the replacements consistently.
- */
-export default function replaceVars(query, replacement, defaultPrefix = '', boundVariables = []) {
+export default function replaceVars<replacedComponent extends QueryComponent>(
+    query: replacedComponent,
+    replacement: Record<string, SparqlJs.Term>,
+    defaultPrefix = '',
+    boundVariables: string[] = []
+): replacedComponent {
     return visit(query, {
         postVisitPattern: pattern => {
             if (pattern.type === 'values') {
-                let newValues = [];
-                pattern.values.forEach((binding) => {
-                    let newBinding = {};
+                let newValues: any[] = [];
+                pattern.values.forEach((binding: any) => {
+                    let newBinding: any = {};
                     for (const varnameWithQuestionMark in binding) {
                         const varname = varnameWithQuestionMark.slice(1);
                         if (varname in replacement) {
@@ -50,25 +37,23 @@ export default function replaceVars(query, replacement, defaultPrefix = '', boun
                     newValues.push(newBinding);
                 });
                 if (newValues.length === 0) {
-                    return COLLAPSED_FALSE;
+                    return {type: 'values', values: []}; // COLLAPSED_FALSE
                 }
                 if (newValues.length === 1 && Object.keys(newValues[0]).length === 0) {
-                    return COLLAPSED_TRUE;
+                    return {type: 'values', values: [{}]}; // COLLAPSED_TRUE
                 }
                 return {
                     type: 'values',
                     values: newValues
                 };
             }
-            // if (pattern.type === 'bind' && pattern.variable.value in replacement) {
-            //     if (replacement[pattern.variable.value].termType !== 'Variable') {
             if (pattern.type === 'bind') {
                 if (pattern.variable.termType !== 'Variable') {
                     if ('termType' in pattern.expression) {
                         if (equalTerms(replacement[pattern.variable.value], pattern.expression)) {
-                            return COLLAPSED_TRUE;
+                            return {type: 'values', values: [{}]};
                         }
-                        return COLLAPSED_FALSE;
+                        return {type: 'values', values: []};
                     }
                     return {
                         type: 'filter',
@@ -113,4 +98,3 @@ export default function replaceVars(query, replacement, defaultPrefix = '', boun
         }
     });
 }
-

@@ -1,28 +1,16 @@
-import visit, { COLLAPSED_FALSE, COLLAPSED_TRUE } from "./visitQuery.js";
+import type * as SparqlJs from 'sparqljs';
+import visit from "./visitQuery.js";
 import tripleMatch from "./match.js";
 import replaceVars from "./replaceVars.js";
 import getOutputVariables from "./getOutputVariables.js";
 
-/**
- * rewrite.js
- *
- * Rewrite a parsed SPARQL query by applying a set of `CONSTRUCT`-style
- * rewrite `rules`. Each rule is a parsed `CONSTRUCT` query (as produced by
- * `sparqljs`) whose `template` and `where` define how matching triples in a
- * BGP should be expanded. The rewriter replaces matching triples with the
- * rule's `WHERE` body (with variables substituted).
- *
- * `queryRewrite(query, rules)`:
- * - `query`: parsed SPARQL query object to transform.
- * - `rules`: array of parsed CONSTRUCT queries (the compiled view rules).
- */
-export default function queryRewrite(query, rules) {
+export default function queryRewrite(query: SparqlJs.Query, rules: SparqlJs.ConstructQuery[]): SparqlJs.Query {
     let subqueryCounter = 0;
     return visit(query, {
         postVisitPattern: pattern => {
             if (pattern.type === 'bgp') {
-                let remainingBgpTriples = [];
-                let newPatterns = [];
+                let remainingBgpTriples: SparqlJs.Triple[] = [];
+                let newPatterns: SparqlJs.Pattern[] = [];
                 for (const triplePattern of pattern.triples) {
                     let matchFound = false;
                     for (const rule of rules) {
@@ -30,13 +18,13 @@ export default function queryRewrite(query, rules) {
                         const matchResult = tripleMatch(triplePattern, ruleHead);
                         if (matchResult !== null) {
                             matchFound = true;
-                            newPatterns.push(replaceVars(rule.where, matchResult.match, `_q${subqueryCounter++}_`, getOutputVariables(newPatterns)));
+                            newPatterns.push(...replaceVars(rule.where, matchResult.match, `_q${subqueryCounter++}_`, getOutputVariables(newPatterns)));
                             newPatterns.push(...matchResult.extraClauses);
                             break;
                         }
                     }
                     if (!matchFound) {
-                        return COLLAPSED_FALSE;
+                        return {type: 'values', values: []}; // COLLAPSED_FALSE
                     }
                 }
                 if (remainingBgpTriples.length > 0) {
@@ -46,7 +34,7 @@ export default function queryRewrite(query, rules) {
                     });
                 }
                 if (newPatterns.length === 0) {
-                    return COLLAPSED_TRUE;
+                    return {type: 'values', values: [{}]}; // COLLAPSED_TRUE
                 }
                 if (newPatterns.length === 1) {
                     return newPatterns[0];
@@ -68,7 +56,10 @@ export default function queryRewrite(query, rules) {
                     projectedVariables: getOutputVariables(query)
                 }
             }
-            return query;
+            return {
+                ...query,
+                projectedVariables: []
+            };
         },
         postVisitQuery: query => {
             if ('variables' in query &&
@@ -80,7 +71,7 @@ export default function queryRewrite(query, rules) {
                 if (JSON.stringify(newProjectedVariables) != JSON.stringify(projectedVariables)) {
                     return {
                         ...justQuery,
-                        variables: projectedVariables.map(varname => ({
+                        variables: projectedVariables.map((varname: any) => ({
                             termType: 'Variable',
                             value: varname
                         }))

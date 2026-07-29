@@ -1,74 +1,66 @@
+import type * as SparqlJs from 'sparqljs';
 import visitQuery, { COLLAPSED_FALSE } from './visitQuery.js';
 import replaceVars from './replaceVars.js';
 import { equalTerms } from './match.js';
-import normalizeView, { DEFAULT_VARS } from './normalizeView.js';
+import parseView, { AnnotatedConstructQuery, DEFAULT_VARS, ParsedView } from './parseView.js';
 
-function freeRoles(templateTriple) {
+function freeRoles(templateTriple: SparqlJs.Triple) {
     return Object.keys(DEFAULT_VARS).filter(role =>
         templateTriple[role].termType === 'Variable'
     );
 }
 
-// Roles that are bound (not variables) in a template triple
-function boundRoles(templateTriple) {
+function boundRoles(templateTriple: SparqlJs.Triple) {
     return Object.keys(DEFAULT_VARS).filter(role =>
         templateTriple[role].termType !== 'Variable'
     );
 }
 
-function subsets([first, ...rest]) {
+function subsets([first, ...rest]: any[]): any[] {
     if (first === undefined)
         return [[]];
     const restSubsets = subsets(rest);
     return [...restSubsets, ...restSubsets.map(restSubset => [first, ...restSubset])];
 }
 
-function nonEmptySubsets(items) {
+function nonEmptySubsets(items: any[]) {
     return subsets(items).slice(1);
 }
 
-function replaceTemplate(query, newTemplate) {
+function replaceTemplate(query: SparqlJs.ConstructQuery, newTemplate: SparqlJs.Triple[]): SparqlJs.ConstructQuery {
     return visitQuery(query, {
-        postVisitQuery: pattern => {
-            pattern.template = newTemplate
-            return pattern;
+        postVisitQuery: (query: SparqlJs.ConstructQuery) => {
+            query.template = newTemplate
+            return query;
         }
     });
 }
 
-function decomposeConstruct(construct) {
-    // Split a CONSTRUCT with multiple template triples into a list of
-    // single-triple CONSTRUCTs. For each template triple, replace the free
-    // variable role names with the canonical `DEFAULT_VARS` so subsequent
-    // comparisons and merging operate on a normalized form.
-    return construct.template.map(templateTriple => replaceVars(
+function decomposeConstruct(construct: SparqlJs.ConstructQuery): SparqlJs.ConstructQuery[] {
+    return construct.template.map((templateTriple: SparqlJs.Triple) => replaceVars(
         replaceTemplate(construct, [templateTriple]),
         Object.fromEntries(
-            freeRoles(templateTriple).map(role =>
+            freeRoles(templateTriple).map((role: string) =>
                 [templateTriple[role].value, DEFAULT_VARS[role]]
             )
         )
-    ));
+    ) );
 }
 
-function generalize(construct) {
-    // For each non-empty subset of bound roles produce a variant where those
-    // roles are turned into variables and the original values are provided
-    // via a `VALUES` block. This produces more generic forms of the
-    // construct which can match when only partial information is present.
-    return nonEmptySubsets(boundRoles(construct.template[0])).map(rolesToGeneralize =>
+function generalize(construct: SparqlJs.ConstructQuery): SparqlJs.ConstructQuery[] {
+    return nonEmptySubsets(boundRoles(construct.template[0])).map((rolesToGeneralize: string[]) =>
         visitQuery(construct, {
-            postVisitQuery: construct => {
+            postVisitQuery: (construct: SparqlJs.ConstructQuery) => {
                 if (rolesToGeneralize.length > 0) {
                     construct.where.push({
                         type: 'values',
                         values: [
-                            Object.fromEntries(rolesToGeneralize.map(roleToGeneralize =>
+                            Object.fromEntries(rolesToGeneralize.map((roleToGeneralize: string) =>
                                 [`?${roleToGeneralize}`, construct.template[0][roleToGeneralize]]
                             ))
                         ]
                     });
-                    rolesToGeneralize.forEach(roleToGeneralize => {
+                    rolesToGeneralize.forEach((roleToGeneralize: string) => {
                         construct.template[0][roleToGeneralize] = DEFAULT_VARS[roleToGeneralize];
                     });
                 }
@@ -78,46 +70,43 @@ function generalize(construct) {
     );
 }
 
-function cospecialize(construct, [otherConstruct, ...restOfOtherConstructs]) {
-    // Co-specialization: if `construct` has roles that are free where
-    // `otherConstruct` has bound roles (and vice-versa for compatibility),
-    // produce specialized variants of `construct` by copying binding values
-    // from `otherConstruct` into the free roles. Recursively propagate
-    // specializations across the remaining constructs.
+function cospecialize(
+    construct: AnnotatedConstructQuery,
+    [otherConstruct, ...restOfOtherConstructs]: AnnotatedConstructQuery[]
+) : SparqlJs.ConstructQuery[] {
     if (construct.uniqueTemplate || otherConstruct === undefined) {
         return [];
     }
     if (otherConstruct.uniqueTemplate) {
         return cospecialize(construct, restOfOtherConstructs);
     }
-    let specializations = [];
+    let specializations: SparqlJs.ConstructQuery[] = [];
     const constructFreeRoles = freeRoles(construct.template[0]);
     const constructBoundRoles = boundRoles(construct.template[0]);
     const otherConstructFreeRoles = freeRoles(otherConstruct.template[0]);
     const otherConstructBoundRoles = boundRoles(otherConstruct.template[0]);
     if (
-        constructBoundRoles.every(boundRole =>
+        constructBoundRoles.every((boundRole: string) =>
             otherConstructFreeRoles.indexOf(boundRole) >= 0 ||
             equalTerms(construct.template[0][boundRole], otherConstruct.template[0][boundRole]))
-        // && constructBoundRoles.some(boundRole => otherConstructFreeRoles.indexOf(boundRole) >= 0)
-        && constructFreeRoles.some(freeRole => otherConstructBoundRoles.indexOf(freeRole) >= 0)
+        && constructFreeRoles.some((freeRole: string) => otherConstructBoundRoles.indexOf(freeRole) >= 0)
     ) {
-        const rolesToSpecialize = boundRoles(otherConstruct.template[0]).filter(role => constructFreeRoles.indexOf(role) >= 0);
-        specializations = nonEmptySubsets(rolesToSpecialize).map(rolesToSpecialize =>
+        const rolesToSpecialize = boundRoles(otherConstruct.template[0]).filter((role: any) => constructFreeRoles.indexOf(role) >= 0);
+        specializations = nonEmptySubsets(rolesToSpecialize).map((rolesToSpecialize: string[]) =>
             visitQuery(construct, {
-                postVisitQuery: construct => {
-                    rolesToSpecialize.forEach(roleToSpecialize => {
+                postVisitQuery: (construct: SparqlJs.ConstructQuery) => {
+                    rolesToSpecialize.forEach((roleToSpecialize: string) => {
                         construct.template[0][roleToSpecialize] = otherConstruct.template[0][roleToSpecialize];
                     });
                     construct.where = replaceVars(
                         construct.where,
-                        Object.fromEntries(rolesToSpecialize.map(roleToSpecialize =>
+                        Object.fromEntries(rolesToSpecialize.map((roleToSpecialize: string) =>
                             [roleToSpecialize, otherConstruct.template[0][roleToSpecialize]]
                         ))
                     );
                     return construct;
                 }
-            })
+            }) as SparqlJs.ConstructQuery
         );
         specializations = [
             ...specializations,
@@ -130,7 +119,7 @@ function cospecialize(construct, [otherConstruct, ...restOfOtherConstructs]) {
     ];
 }
 
-function cospecializeAll([construct, ...otherConstructs]) {
+function cospecializeAll([construct, ...otherConstructs]: AnnotatedConstructQuery[]): SparqlJs.ConstructQuery[] {
     if (construct === undefined) {
         return [];
     }
@@ -140,8 +129,20 @@ function cospecializeAll([construct, ...otherConstructs]) {
     ];
 }
 
-function merge(constructs) {
-    let constructByTemplate = {};
+function join(patterns: SparqlJs.Pattern[]): SparqlJs.Pattern {
+    if (patterns.length === 0) {
+        return COLLAPSED_FALSE;
+    } else if (patterns.length === 1) {
+        return patterns[0];
+    }
+    return {
+        type: 'group',
+        patterns
+    };
+}
+
+function merge(constructs: SparqlJs.ConstructQuery[]): SparqlJs.ConstructQuery[] {
+    let constructByTemplate: Record<string, SparqlJs.ConstructQuery[]> = {};
     for (const construct of constructs) {
         const templateTxt = JSON.stringify(construct.template[0]);
         if (templateTxt in constructByTemplate) {
@@ -157,18 +158,18 @@ function merge(constructs) {
         return {
             queryType: 'CONSTRUCT',
             template: templateConstructs[0].template,
-            where: {
+            where: [{
                 type: 'union',
-                patterns: templateConstructs.map(construct => construct.where)
-            },
+                patterns: templateConstructs.map(construct => join(construct.where))
+            }],
             type: 'query',
             prefixes: Object.fromEntries(templateConstructs.flatMap(construct => Object.entries(construct.prefixes)))
-        };
+        } as SparqlJs.ConstructQuery;
     })
 }
 
-function orderByDecreasingSpecificity(constructs) {
-    let constructByNumOfFreeVariables = [[], [], [], []];
+function orderByDecreasingSpecificity(constructs: SparqlJs.ConstructQuery[]) {
+    let constructByNumOfFreeVariables: SparqlJs.ConstructQuery[][] = [[], [], [], []];
     for (const construct of constructs) {
         const numOfFreeVariables = freeRoles(construct.template[0]).length;
         constructByNumOfFreeVariables[numOfFreeVariables].push(construct);
@@ -176,8 +177,8 @@ function orderByDecreasingSpecificity(constructs) {
     return constructByNumOfFreeVariables.flat();
 }
 
-export default function compileView(normalizedView) {
-    const baseConstructs = normalizedView.flatMap(decomposeConstruct);
+export default function compileView(parsedView: ParsedView): SparqlJs.ConstructQuery[] {
+    const baseConstructs = parsedView.flatMap(decomposeConstruct);
     const specializedConstructs = cospecializeAll(baseConstructs);
     const generalizedConstructs = baseConstructs.flatMap(generalize);
     const constructs = merge([

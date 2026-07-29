@@ -1,73 +1,41 @@
-/**
- * visitQuery.js
- *
- * A lightweight tree-walking helper for parsed SPARQL query objects
- * (as produced by `sparqljs`). The module exposes:
- * - `COLLAPSED_TRUE` / `COLLAPSED_FALSE`: sentinel values used during
- *    visitation to represent always-true / always-false pattern outcomes
- *    (similar to TABLE_DEE/TABLE_DUM in algebraic rewriting literature).
- * - `visitQuery(query, handlers)`: a configurable recursive visitor that
- *    applies provided handler hooks while traversing query, pattern and
- *    term nodes. Handlers can transform nodes or return sentinel values to
- *    indicate collapse behavior.
- */
+import type * as SparqlJs from 'sparqljs';
 
-export const COLLAPSED_TRUE = {type: 'dee'}; // TABLE_DEE
-export const COLLAPSED_FALSE = {type: 'dum'}; // TABLE_DUM
+export const COLLAPSED_TRUE = {type: 'values', values: [{}]} as SparqlJs.Pattern; // TABLE_DEE
+export const COLLAPSED_FALSE = {type: 'values', values: []} as SparqlJs.Pattern; // TABLE_DUM
 
-export function isCollapsedFalse(query) {
-    return typeof query === 'object' && 'type' in query && query.type === 'dum';
+export function isCollapsedFalse(query: SparqlJs.Pattern) {
+    return typeof query === 'object' && 'type' in query && query.type === 'values' && query.values.length === 0;
 }
 
-export function isCollapsedTrue(query) {
-    return typeof query === 'object' && 'type' in query && query.type === 'dee';
+export function isCollapsedTrue(query: SparqlJs.Pattern) {
+    return typeof query === 'object' && 'type' in query && query.type === 'values' && query.values.length === 1 && Object.keys(query.values[0]).length === 0;
 }
 
-export function convertCollapsed(patterns) {
-    if (patterns.length === 1) {
-        if (isCollapsedTrue(patterns[0])) {
-            return {
-                type: 'values',
-                values: [{}]
-            }
-        }
-        if (isCollapsedFalse(patterns[0])) {
-            return {
-                type: 'values',
-                values: []
-            }
-        }
+export type QueryComponent = SparqlJs.Query | SparqlJs.Pattern | SparqlJs.Term | (SparqlJs.Query | SparqlJs.Pattern | SparqlJs.Term)[];
+
+export default function visitQuery<visitedType extends QueryComponent, ModifiedQuery extends SparqlJs.Query, ModifiedPattern extends SparqlJs.Pattern>(
+    query: visitedType,
+    visitors: {
+        preVisitQuery?: ((x: SparqlJs.Query) => ModifiedQuery),
+        postVisitQuery?: ((x: ModifiedQuery) => any), 
+        preVisitPattern?: ((x: SparqlJs.Pattern) => ModifiedPattern),
+        postVisitPattern?: ((x: ModifiedPattern) => any), 
+        visitTerm?: ((x: SparqlJs.Term) => any)
     }
-    return patterns;
-}
-
-/**
- * visitQuery(query, handlers)
- *
- * Walks a parsed SPARQL query structure and invokes handler hooks at
- * different node types. Handlers are:
- * - `preVisitQuery`, `postVisitQuery` for query nodes
- * - `preVisitPattern`, `postVisitPattern` for pattern nodes
- * - `visitTerm` for term nodes
- *
- * Each handler receives the current node and can return a transformed
- * node. The visitor understands `COLLAPSED_TRUE`/`COLLAPSED_FALSE` sentinels
- * and will propagate collapse semantics through constructs like `UNION` and
- * `OPTIONAL`.
- */
-export default function visitQuery(query, {
-    preVisitQuery = (x) => (x),
-    postVisitQuery = (x) => (x), 
-    preVisitPattern = (x) => (x),
-    postVisitPattern = (x) => (x), 
-    visitTerm = (x) => (x)
-} = {}) {
-    function v(query) {
+): any {
+    const {
+        preVisitQuery = (x => x),
+        postVisitQuery = (x => x),
+        preVisitPattern = (x => x),
+        postVisitPattern = (x => x),
+        visitTerm = (x => x)
+    } = visitors;
+    function v(query: any): any {
         if (typeof query !== 'object' || query === null) {
             return query;
         }
         if (Array.isArray(query)) {
-            let newSubQueries = [];
+            let newSubQueries: any[] = [];
             for (const subQuery of query) {
                 const postSubQuery = v(subQuery);
                 if (!isCollapsedTrue(postSubQuery)) {
@@ -88,7 +56,6 @@ export default function visitQuery(query, {
         if ('queryType' in query) {
             query = preVisitQuery(query);
             query = Object.fromEntries(Object.entries(query).map(([key, value]) => [key, v(value)]));
-            // const where = v(query.where);
             return postVisitQuery(query);
         }
         if ('type' in query) {
@@ -96,14 +63,14 @@ export default function visitQuery(query, {
             if (query.type === 'bgp') {
                 query = {
                     type: 'bgp',
-                    triples: query.triples.map(({subject, predicate, object}) => ({
+                    triples: query.triples.map(({subject, predicate, object}: any) => ({
                         subject: v(subject),
                         predicate: v(predicate),
                         object: v(object)
                     }))
                 }
             } else if (query.type === 'union') {
-                let newPatterns = [];
+                let newPatterns: any[] = [];
                 let collapsedTrueFound = false;
                 for (const pattern of query.patterns) {
                     const newPattern = v(pattern);
@@ -139,7 +106,7 @@ export default function visitQuery(query, {
             } else if (query.type === 'values') {
                 query = {
                     type: 'values',
-                    values: query.values.map(binding => Object.fromEntries(Object.entries(binding).map(([key, value]) => [key, v(value)])))
+                    values: query.values.map((binding: any) => Object.fromEntries(Object.entries(binding).map(([key, value]) => [key, v(value)])))
                 };
             } else {
                 query = Object.fromEntries(Object.entries(query).map(([key, value]) => [key, v(value)]));
