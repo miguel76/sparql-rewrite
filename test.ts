@@ -61,13 +61,13 @@ SELECT *
 }
 `;
 
-const parsedQuery: SparqlJs.ConstructQuery = parser.parse(query);
+const parsedQuery: SparqlJs.ConstructQuery = parser.parse(query) as SparqlJs.ConstructQuery;
 
 var generator = new SparqlGenerator({});
 
 console.log(
 `
-## View Specification
+# View Specification
 ${JSON.stringify(view, null, 2)}
 `);
 
@@ -75,11 +75,11 @@ const compiledView = compileView(normalizedView);
 
 var ruleCounter = 0;
 console.log(`
-## Compiled View
+# Compiled View
 ${
   compiledView.map(construct =>
 `
-# Rule ${++ruleCounter}
+## Rule ${++ruleCounter}
 ${generator.stringify(construct)}
 `
   ).join('\n')
@@ -88,18 +88,18 @@ ${generator.stringify(construct)}
 
 console.log(
 `
-## Query
+# Query
 ${query}
 `);
 
 console.log(
 `
-## RewrittenQuery
+# RewrittenQuery
 ${generator.stringify(queryRewrite(parsedQuery, compiledView))}
 `);
 
 console.log(
 `
-## View as Update
+# View as Update
 ${generator.stringify(viewToUpdate(normalizedView, 'http://example.org/graph'))}
 `);
