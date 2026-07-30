@@ -177,7 +177,97 @@ function orderByDecreasingSpecificity(constructs: SparqlJs.ConstructQuery[]) {
     return constructByNumOfFreeVariables.flat();
 }
 
-export default function compileView(parsedView: ParsedView): SparqlJs.ConstructQuery[] {
+export type Replacement = {
+    subject?: SparqlJs.Term,
+    predicate?: SparqlJs.Term,
+    object?: SparqlJs.Term
+};
+
+// export type BoundRoles = {
+//     subject?: SparqlJs.Term,
+//     predicate?: SparqlJs.Term,
+//     object?: SparqlJs.Term
+// };
+
+export type CompiledRule = {
+    construct: SparqlJs.ConstructQuery,
+    // bound: BoundRoles,
+    replacement?: Replacement
+};
+
+export type CompiledViewForPredicate = {
+    generic?: CompiledRule,
+    byObject?: Record<string, CompiledRule>
+};
+
+export type CompiledViewForSubject = CompiledViewForPredicate & {
+    byPredicate?: Record<string, CompiledViewForPredicate>
+};
+
+export type CompiledView = CompiledViewForSubject & {
+    bySubject?: Record<string, CompiledViewForSubject>
+};
+
+function compileRule(construct: SparqlJs.ConstructQuery): CompiledRule {
+    return {
+        construct
+    };
+}
+
+function createMapping(constructs: SparqlJs.ConstructQuery[]) {
+    let mapping: CompiledView = {};
+
+    function addCompiledRuleToPredicateMapping(predicateMapping: CompiledViewForPredicate, compiledRule: CompiledRule) {
+        const object = compiledRule.construct.template[0].object;
+        if (object.termType !== 'Variable') {
+            if (!('byObject' in predicateMapping)) {
+                predicateMapping.byObject = {};
+            }
+            predicateMapping.byObject[JSON.stringify(object)] = compiledRule;
+        } else {
+            predicateMapping.generic = compiledRule;
+        }
+    }
+
+    function addCompiledRuleToSubjectMapping(subjectMapping: CompiledViewForSubject, compiledRule: CompiledRule) {
+        const predicate: SparqlJs.Term = compiledRule.construct.template[0].predicate as SparqlJs.Term;
+        if (predicate.termType !== 'Variable') {
+            if (!('byPredicate' in subjectMapping)) {
+                subjectMapping.byPredicate = {};
+            }
+            const predicateTermStr = JSON.stringify(predicate);
+            if (!(predicateTermStr in subjectMapping.byPredicate)) {
+                subjectMapping.byPredicate[predicateTermStr] = {};
+            }
+            addCompiledRuleToPredicateMapping(subjectMapping.byPredicate[predicateTermStr], compiledRule);
+        } else {
+            addCompiledRuleToPredicateMapping(subjectMapping, compiledRule);
+        }
+    }
+
+    function addCompiledRuleToMapping(compiledRule: CompiledRule) {
+        const subject = compiledRule.construct.template[0].subject;
+        if (subject.termType !== 'Variable') {
+            if (!('bySubject' in mapping)) {
+                mapping.bySubject = {};
+            }
+            const subjectTermStr = JSON.stringify(subject);
+            if (!(subjectTermStr in mapping.bySubject)) {
+                mapping.bySubject[subjectTermStr] = {};
+            }
+            addCompiledRuleToSubjectMapping(mapping.bySubject[subjectTermStr], compiledRule);
+        } else {
+            addCompiledRuleToSubjectMapping(mapping, compiledRule);
+        }
+    }
+    for (const construct of constructs) {
+        addCompiledRuleToMapping(compileRule(construct));
+    }
+    return mapping;
+}
+
+
+export default function compileView(parsedView: ParsedView): CompiledView {
     const baseConstructs = parsedView.flatMap(decomposeConstruct);
     const specializedConstructs = cospecializeAll(baseConstructs);
     const generalizedConstructs = baseConstructs.flatMap(generalize);
@@ -186,5 +276,5 @@ export default function compileView(parsedView: ParsedView): SparqlJs.ConstructQ
         ...specializedConstructs,
         ...generalizedConstructs
     ]);
-    return orderByDecreasingSpecificity(constructs);
+    return createMapping(constructs);
 }
